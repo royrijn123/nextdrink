@@ -312,649 +312,646 @@
 
   </main>
 
-  <script>
-    const $ = id => document.getElementById(id);
-    const apiUrl = "https://script.google.com/macros/s/AKfycbxJaneXzY7PiSVMNSGnNDWnkYxh_4c45arWzxqrC9k6_MGV3o4mpRZv9ZZNiTdWoqEn/exec";
+<script>
+  const $ = id => document.getElementById(id);
+  const apiUrl = "https://script.google.com/macros/s/AKfycbxJaneXzY7PiSVMNSGnNDWnkYxh_4c45arWzxqrC9k6_MGV3o4mpRZv9ZZNiTdWoqEn/exec";
 
-    // chipId uitlezen
-    const chipIdRaw = new URLSearchParams(window.location.search).get('chipId');
-    const chipId = (chipIdRaw && chipIdRaw !== 'null' && chipIdRaw !== 'undefined') ? chipIdRaw : null;
-    const noChipMode = !chipId;
+  // chipId uitlezen
+  const chipIdRaw = new URLSearchParams(window.location.search).get('chipId');
+  const chipId = (chipIdRaw && chipIdRaw !== 'null' && chipIdRaw !== 'undefined') ? chipIdRaw : null;
+  const noChipMode = !chipId;
 
-    let scannerName = (localStorage.getItem('scannerName') || '').trim();
-    let chipOwner = '';
-    let drinks = [];
-    let isOwnChip = false;
-    let myChipId = localStorage.getItem('myChipId') || null;
+  let scannerName = (localStorage.getItem('scannerName') || '').trim();
+  let chipOwner = '';
+  let drinks = [];
+  let isOwnChip = false;
+  let myChipId = localStorage.getItem('myChipId') || null;
 
-    // CACHE
-    let chipCache = JSON.parse(localStorage.getItem("chipCache") || "{}");
-    let drinksCache = JSON.parse(localStorage.getItem("drinksCache") || "null");
-    let drinksCacheTime = parseInt(localStorage.getItem("drinksCacheTime") || "0", 10) || 0;
+  // CACHE
+  let chipCache = JSON.parse(localStorage.getItem("chipCache") || "{}");
+  let drinksCache = JSON.parse(localStorage.getItem("drinksCache") || "null");
+  let drinksCacheTime = parseInt(localStorage.getItem("drinksCacheTime") || "0", 10) || 0;
 
-    const CACHE_DRINKS_MAX_AGE = 24*60*60*1000;
-    const CACHE_REFRESH_INTERVAL = 5*60*1000;
+  const CACHE_DRINKS_MAX_AGE = 24*60*60*1000;
+  const CACHE_REFRESH_INTERVAL = 5*60*1000;
 
-    let nameQuestionMode = null;
-    let errorTimeout = null;
+  let nameQuestionMode = null;
+  let errorTimeout = null;
 
-    function showMain(){
-      $("mainCard").classList.remove("hidden");
+  function showMain(){
+    $("mainCard").classList.remove("hidden");
+  }
+
+  function showLoading(show, text='Bezig...') {
+    const overlay = $('loadingOverlay');
+    overlay.style.display = show ? 'flex' : 'none';
+    $('loadingText').textContent = text;
+    document.querySelectorAll('button').forEach(b => b.disabled = show);
+  }
+
+  function showError(message){
+    const banner = $('errorBanner');
+    const textEl = $('errorBannerText');
+    if (!banner || !textEl) return;
+
+    textEl.textContent = message || 'Er ging iets mis, probeer opnieuw.';
+    banner.classList.remove('hidden');
+    banner.classList.remove('opacity-0');
+    banner.classList.add('opacity-100');
+
+    if (errorTimeout) clearTimeout(errorTimeout);
+    errorTimeout = setTimeout(() => {
+      banner.classList.remove('opacity-100');
+      banner.classList.add('opacity-0');
+      setTimeout(() => {
+        banner.classList.add('hidden');
+      }, 250);
+    }, 3000);
+  }
+
+  async function fetchWithTimeout(url, options={}, timeout=2500) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(id);
+      return res;
+    } catch (err) {
+      clearTimeout(id);
+      throw err;
     }
+  }
 
-    function showLoading(show, text='Bezig...') {
-      const overlay = $('loadingOverlay');
-      overlay.style.display = show ? 'flex' : 'none';
-      $('loadingText').textContent = text;
-      document.querySelectorAll('button').forEach(b => b.disabled = show);
+  function hideAll() {
+    [
+      'menu','confirm','scores','final',
+      'firstTime','bestellijst','newDrink',
+      'postName','nameQuestion'
+    ].forEach(id => $(id)?.classList.add('hidden'));
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // DRANKEN LADEN MET CACHE
+  async function loadDrinks(){
+    const NOW = Date.now();
+    if (drinksCache && (NOW - drinksCacheTime) < CACHE_DRINKS_MAX_AGE){
+      drinks = drinksCache;
+      return;
     }
-
-    function showError(message){
-      const banner = $('errorBanner');
-      const textEl = $('errorBannerText');
-      if (!banner || !textEl) return;
-
-      textEl.textContent = message || 'Er ging iets mis, probeer opnieuw.';
-      banner.classList.remove('hidden');
-      banner.classList.remove('opacity-0');
-      banner.classList.add('opacity-100');
-
-      if (errorTimeout) clearTimeout(errorTimeout);
-      errorTimeout = setTimeout(() => {
-        banner.classList.remove('opacity-100');
-        banner.classList.add('opacity-0');
-        setTimeout(() => {
-          banner.classList.add('hidden');
-        }, 250);
-      }, 3000);
-    }
-
-    async function fetchWithTimeout(url, options={}, timeout=1200) {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeout);
-      try {
-        const res = await fetch(url, { ...options, signal: controller.signal });
-        clearTimeout(id);
-        return res;
-      } catch (err) {
-        clearTimeout(id);
-        throw err;
-      }
-    }
-
-    function hideAll() {
-      [
-        'menu','confirm','scores','final',
-        'firstTime','bestellijst','newDrink',
-        'postName','nameQuestion'
-      ].forEach(id => $(id)?.classList.add('hidden'));
-    }
-
-    function escapeHtml(str){
-      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-
-    // DRANKEN LADEN MET CACHE
-    async function loadDrinks(){
-      const NOW = Date.now();
-      if (drinksCache && (NOW - drinksCacheTime) < CACHE_DRINKS_MAX_AGE){
+    try{
+      const resp = await fetchWithTimeout(`${apiUrl}?action=getDrinks`, {}, 1500);
+      const list = await resp.json();
+      drinks = list;
+      drinksCache = list;
+      drinksCacheTime = NOW;
+      localStorage.setItem("drinksCache", JSON.stringify(list));
+      localStorage.setItem("drinksCacheTime", NOW.toString());
+    }catch(e){
+      console.error("Fout bij drinks laden:", e);
+      if (drinksCache){
         drinks = drinksCache;
-        return;
-      }
-      try{
-        const resp = await fetchWithTimeout(`${apiUrl}?action=getDrinks`, {}, 1500);
-        const list = await resp.json();
-        drinks = list;
-        drinksCache = list;
-        drinksCacheTime = NOW;
-        localStorage.setItem("drinksCache", JSON.stringify(list));
-        localStorage.setItem("drinksCacheTime", NOW.toString());
-      }catch(e){
-        console.error("Fout bij drinks laden:", e);
-        if (drinksCache){
-          drinks = drinksCache;
-        } else {
-          drinks = [
-            {name:'Kleine bier',price:4.4},
-            {name:'Grote bier',price:8},
-            {name:'Desperados',price:6.5},
-            {name:'Wijn',price:6},
-            {name:'0.0 bier',price:4},
-            {name:'Frisdrank',price:4}
-          ];
-        }
-      }
-    }
-
-    // PERIODIEKE REFRESH OWNERS & DRINKS
-    async function refreshCaches(){
-      try{
-        const rD = await fetchWithTimeout(`${apiUrl}?action=getDrinks`,{},1500);
-        const newDrinks = await rD.json();
-        drinksCache = newDrinks;
-        drinksCacheTime = Date.now();
-        localStorage.setItem("drinksCache", JSON.stringify(newDrinks));
-        localStorage.setItem("drinksCacheTime", drinksCacheTime.toString());
-
-        const rO = await fetchWithTimeout(`${apiUrl}?action=getAllOwners`,{},1500);
-        const owners = await rO.json();
-        chipCache = owners;
-        localStorage.setItem("chipCache", JSON.stringify(owners));
-      }catch(e){
-        console.warn("Periodic sync failed", e);
-      }
-    }
-    setInterval(refreshCaches, CACHE_REFRESH_INTERVAL);
-
-function updateOwnChipFlag(){
-  // Eigen sticker = ALLEEN de chip waarvan de id in myChipId staat,
-  // gezet tijdens de first-time flow. Niet afleiden uit de naam.
-  isOwnChip = !!(chipId && myChipId && myChipId === chipId);
-}
-    
-    async function resolveOwnerWithAutoSync(){
-      if (!chipId) {
-        chipOwner = "";
-        return;
-      }
-
-      const cachedOwner = chipCache[chipId] || "";
-      let sheetOwner = "";
-
-      try{
-        const resp = await fetchWithTimeout(
-          `${apiUrl}?action=getOwner&chipId=${encodeURIComponent(chipId)}`,
-          {},
-          800
-        );
-        sheetOwner = (await resp.text()).trim();
-      }catch(e){
-        console.error("Fout bij getOwner:", e);
-        sheetOwner = "";
-      }
-
-      // OWNER BESTAAT ALTIJD PRIORITEIT
-      if (sheetOwner){
-        chipOwner = sheetOwner;
-        chipCache[chipId] = sheetOwner;
-        localStorage.setItem("chipCache", JSON.stringify(chipCache));
-      }
-      else if (cachedOwner){
-        chipOwner = cachedOwner;
-
-        // probeer alsnog sheet te syncen
-        fetch(apiUrl, {
-          method:'POST',
-          body:new URLSearchParams({
-            action:'setOwner',
-            chipId,
-            owner: cachedOwner
-          })
-        }).catch(err => console.error("Auto-sync setOwner fail:", err));
-
       } else {
-        chipOwner = "";
+        drinks = [
+          {name:'Kleine bier',price:4.4},
+          {name:'Grote bier',price:8},
+          {name:'Desperados',price:6.5},
+          {name:'Wijn',price:6},
+          {name:'0.0 bier',price:4},
+          {name:'Frisdrank',price:4}
+        ];
       }
     }
+  }
 
-    async function handleNameLogic(){
-      if (noChipMode) {
-        updateOwnChipFlag();
-        return "menu";
-      }
+  // PERIODIEKE REFRESH OWNERS & DRINKS
+  async function refreshCaches(){
+    try{
+      const rD = await fetchWithTimeout(`${apiUrl}?action=getDrinks`,{},1500);
+      const newDrinks = await rD.json();
+      drinksCache = newDrinks;
+      drinksCacheTime = Date.now();
+      localStorage.setItem("drinksCache", JSON.stringify(newDrinks));
+      localStorage.setItem("drinksCacheTime", drinksCacheTime.toString());
 
-      const hasScanner = !!scannerName;
-      const hasOwner   = !!chipOwner;
+      const rO = await fetchWithTimeout(`${apiUrl}?action=getAllOwners`,{},1500);
+      const owners = await rO.json();
+      chipCache = owners;
+      localStorage.setItem("chipCache", JSON.stringify(owners));
+    }catch(e){
+      console.warn("Periodic sync failed", e);
+    }
+  }
+  setInterval(refreshCaches, CACHE_REFRESH_INTERVAL);
 
-      // 4. beide bekend → direct naar menu
-      if (hasScanner && hasOwner){
-        updateOwnChipFlag();
-        return "menu";
-      }
+  // EIGEN STICKER LOGICA
+  function updateOwnChipFlag(){
+    // Eigen sticker = ALLEEN de chip waarvan de id in myChipId staat,
+    // gezet tijdens de first-time flow. Niet afleiden uit de naam.
+    isOwnChip = !!(chipId && myChipId && myChipId === chipId);
+  }
 
-      // 1. chipOwner bekend, scanner niet → 'Je hebt de sticker van Bob gescand'
-      if (hasOwner && !hasScanner){
-        nameQuestionMode = 'askScanner';
-        hideAll();
-        $('nameQuestionTitle').textContent = 'Wie ben jij?';
-        $('nameQuestionBody').innerHTML =
-          `Je hebt de sticker van <strong>${escapeHtml(chipOwner)}</strong> gescand. Wat is jouw eigen naam?`;
-        $('nameQuestionInput').value = '';
-        $('nameQuestion').classList.remove('hidden');
-        return "nameQuestion";
-      }
+  async function resolveOwnerWithAutoSync(){
+    if (!chipId) {
+      chipOwner = "";
+      return;
+    }
 
-      // 2. scanner bekend, owner niet → maar alleen als sticker NOOIT eerder eigenaar had
-      if (!hasOwner && hasScanner){
+    const cachedOwner = chipCache[chipId] || "";
+    let sheetOwner = "";
 
-        const previousOwner = chipCache[chipId];
+    try{
+      const resp = await fetchWithTimeout(
+        `${apiUrl}?action=getOwner&chipId=${encodeURIComponent(chipId)}`,
+        {},
+        2500
+      );
+      sheetOwner = (await resp.text()).trim();
+    }catch(e){
+      console.error("Fout bij getOwner:", e);
+      sheetOwner = "";
+    }
 
-        // PERMANENTE OVERSCHRIJFBEVEILIGING
-        if (previousOwner) {
-          chipOwner = previousOwner;
-          hideAll();
-          renderMenu();
-          return "menu";
-        }
+    // OWNER uit sheet heeft prioriteit
+    if (sheetOwner){
+      chipOwner = sheetOwner;
+      chipCache[chipId] = sheetOwner;
+      localStorage.setItem("chipCache", JSON.stringify(chipCache));
+    }
+    else if (cachedOwner){
+      chipOwner = cachedOwner;
 
-        nameQuestionMode = 'askOwner';
-        hideAll();
-        $('nameQuestionTitle').textContent = 'Sticker nog niet gekoppeld';
-        $('nameQuestionBody').textContent =
-          'Deze sticker is nog niet gekoppeld, van wie is de sticker die je scande?';
-        $('nameQuestionInput').value = '';
-        $('nameQuestion').classList.remove('hidden');
-        return "nameQuestion";
-      }
+      // probeer alsnog sheet te syncen
+      fetch(apiUrl, {
+        method:'POST',
+        body:new URLSearchParams({
+          action:'setOwner',
+          chipId,
+          owner: cachedOwner
+        })
+      }).catch(err => console.error("Auto-sync setOwner fail:", err));
 
-      // 3. beiden onbekend → firstTime scherm
-      if (!hasOwner && !hasScanner){
-        hideAll();
-        $('firstTime').classList.remove('hidden');
-        return "firstTime";
-      }
+    } else {
+      chipOwner = "";
+    }
+  }
 
+  async function handleNameLogic(){
+    if (noChipMode) {
+      updateOwnChipFlag();
       return "menu";
     }
 
-    async function init(){
-      showLoading(true,'Initialiseren...');
-      try{
-        await loadDrinks();
+    const hasScanner = !!scannerName;
+    const hasOwner   = !!chipOwner;
 
-        if (noChipMode){
-          chipOwner = scannerName || '';
-          isOwnChip = false;
-          showMain();
-          hideAll();
-          renderMenu();
-          return;
-        }
+    // 4. beide bekend → direct naar menu
+    if (hasScanner && hasOwner){
+      updateOwnChipFlag();
+      return "menu";
+    }
 
-        await resolveOwnerWithAutoSync();
+    // 1. chipOwner bekend, scanner niet → 'Je hebt de sticker van X gescand'
+    if (hasOwner && !hasScanner){
+      nameQuestionMode = 'askScanner';
+      hideAll();
+      $('nameQuestionTitle').textContent = 'Wie ben jij?';
+      $('nameQuestionBody').innerHTML =
+        `Je hebt de sticker van <strong>${escapeHtml(chipOwner)}</strong> gescand. Wat is jouw eigen naam?`;
+      $('nameQuestionInput').value = '';
+      $('nameQuestion').classList.remove('hidden');
+      return "nameQuestion";
+    }
 
-        if (chipId && myChipId && myChipId === chipId){
-          isOwnChip = true;
-        }
+    // 2. scanner bekend, owner niet → maar alleen als sticker NOOIT eerder eigenaar had
+    if (!hasOwner && hasScanner){
 
-        const state = await handleNameLogic();
-        showMain();
+      const previousOwner = chipCache[chipId];
 
-        if (state === "menu"){
-          hideAll();
-          renderMenu();
-        }
+      // PERMANENTE OVERSCHRIJFBEVEILIGING
+      if (previousOwner) {
+        chipOwner = previousOwner;
+        hideAll();
+        renderMenu();
+        return "menu";
+      }
 
-      }catch(err){
-        console.error('Fout bij initialiseren:', err);
+      nameQuestionMode = 'askOwner';
+      hideAll();
+      $('nameQuestionTitle').textContent = 'Sticker nog niet gekoppeld';
+      $('nameQuestionBody').textContent =
+        'Deze sticker is nog niet gekoppeld, van wie is de sticker die je scande?';
+      $('nameQuestionInput').value = '';
+      $('nameQuestion').classList.remove('hidden');
+      return "nameQuestion";
+    }
+
+    // 3. beiden onbekend → firstTime scherm
+    if (!hasOwner && !hasScanner){
+      hideAll();
+      $('firstTime').classList.remove('hidden');
+      return "firstTime";
+    }
+
+    return "menu";
+  }
+
+  async function init(){
+    showLoading(true,'Initialiseren...');
+    try{
+      await loadDrinks();
+
+      if (noChipMode){
+        chipOwner = scannerName || '';
+        isOwnChip = false;
         showMain();
         hideAll();
         renderMenu();
-        showError('Er ging iets mis, probeer opnieuw.');
-      }finally{
-        showLoading(false);
-      }
-    }
-
-    // FIRST TIME FLOW
-    $('firstTimeContinueBtn').onclick = async ()=>{
-      const name = $('firstTimeNameInput').value.trim();
-      if(!name){
-        showError('Voer een naam in.');
         return;
       }
-      showLoading(true,'Verwerken...');
 
-      scannerName = name;
-      chipOwner   = name;
-      localStorage.setItem('scannerName', scannerName);
+      await resolveOwnerWithAutoSync();
 
-      try{
+      updateOwnChipFlag();
+
+      const state = await handleNameLogic();
+      showMain();
+
+      if (state === "menu"){
+        hideAll();
+        renderMenu();
+      }
+
+    }catch(err){
+      console.error('Fout bij initialiseren:', err);
+      showMain();
+      hideAll();
+      renderMenu();
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+  }
+
+  // FIRST TIME FLOW (beiden onbekend → eigen sticker claimen)
+  $('firstTimeContinueBtn').onclick = async ()=>{
+    const name = $('firstTimeNameInput').value.trim();
+    if(!name){
+      showError('Voer een naam in.');
+      return;
+    }
+    showLoading(true,'Verwerken...');
+
+    scannerName = name;
+    chipOwner   = name;
+    localStorage.setItem('scannerName', scannerName);
+
+    try{
+      if (chipId){
+        await fetch(apiUrl, {
+          method:'POST',
+          body:new URLSearchParams({action:'setOwner', chipId, owner:chipOwner})
+        });
+        chipCache[chipId] = chipOwner;
+        localStorage.setItem("chipCache", JSON.stringify(chipCache));
+
+        localStorage.setItem('myChipId', chipId);
+        myChipId = chipId;
+        updateOwnChipFlag();
+      }
+    }catch(e){
+      console.error(e);
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+
+    hideAll();
+    $('postName').classList.remove('hidden');
+  };
+
+  $('postNameContinueBtn').onclick = ()=>{
+    hideAll();
+    renderMenu();
+  };
+
+  // NAAMVRAAG HANDLER (scenario 1 & 2)
+  $('nameQuestionBtn').onclick = async ()=>{
+    const val = $('nameQuestionInput').value.trim();
+    if(!val){
+      showError('Voer een naam in.');
+      return;
+    }
+    showLoading(true,'Verwerken...');
+
+    try{
+
+      // ABSOLUTE OVERSCHRIJF BEVEILIGING VOOR EIGENAAR
+      if (nameQuestionMode === 'askOwner' && chipCache[chipId]) {
+        chipOwner = chipCache[chipId];
+        hideAll();
+        renderMenu();
+        return;
+      }
+
+      if (nameQuestionMode === 'askScanner'){
+        // eigen naam van de scanner invoeren
+        scannerName = val;
+        localStorage.setItem('scannerName', scannerName);
+      }
+      else if (nameQuestionMode === 'askOwner'){
+        // eigenaar van deze sticker invoeren
+        chipOwner = val;
         if (chipId){
           await fetch(apiUrl, {
-            method:'POST',
-            body:new URLSearchParams({action:'setOwner', chipId, owner:chipOwner})
+            method:"POST",
+            body:new URLSearchParams({action:"setOwner", chipId, owner:chipOwner})
           });
           chipCache[chipId] = chipOwner;
           localStorage.setItem("chipCache", JSON.stringify(chipCache));
-
-          localStorage.setItem('myChipId', chipId);
-          myChipId = chipId;
-          isOwnChip = true;
         }
-      }catch(e){
-        console.error(e);
-        showError('Er ging iets mis, probeer opnieuw.');
-      }finally{
-        showLoading(false);
       }
 
-      hideAll();
-      $('postName').classList.remove('hidden');
-    };
-
-    $('postNameContinueBtn').onclick = ()=>{
+      updateOwnChipFlag();
       hideAll();
       renderMenu();
-    };
 
-    // NAAMVRAAG HANDLER
-    $('nameQuestionBtn').onclick = async ()=>{
-      const val = $('nameQuestionInput').value.trim();
-      if(!val){
-        showError('Voer een naam in.');
-        return;
-      }
-      showLoading(true,'Verwerken...');
+    }catch(e){
+      console.error('Fout bij verwerken naamvraag:', e);
+      showError('Er ging iets mis, probeer opnieuw.');
+      hideAll();
+      renderMenu();
+    }finally{
+      showLoading(false);
+    }
+  };
 
-      try{
+  // RENDER MENU
+  function renderMenu(){
+    hideAll();
 
-        // === ABSOLUTE OVERSCHRIJF BEVEILIGING ===
-        if (nameQuestionMode === 'askOwner' && chipCache[chipId]) {
-          chipOwner = chipCache[chipId];
-          hideAll();
-          renderMenu();
-          return;
-        }
+    const titleEl = $('menuTitle');
+    const drinksDiv = $('drinks');
+    const ownExpl   = $('ownChipExplanation');
+    const newDrinkBtn = $('newDrinkScreenBtn');
 
-        if (nameQuestionMode === 'askScanner'){
-          scannerName = val;
-          localStorage.setItem('scannerName', scannerName);
-        }
-        else if (nameQuestionMode === 'askOwner'){
-          chipOwner = val;
-          if (chipId){
-            await fetch(apiUrl, {
-              method:"POST",
-              body:new URLSearchParams({action:"setOwner", chipId, owner:chipOwner})
-            });
-            chipCache[chipId] = chipOwner;
-            localStorage.setItem("chipCache", JSON.stringify(chipCache));
+    const inInsight = noChipMode;
+    const showOwnExplanation = !inInsight && isOwnChip;
+
+    if (inInsight){
+      titleEl.textContent = "JOUW OVERZICHT";
+      ownExpl.classList.add("hidden");
+      drinksDiv.style.display = "none";
+      newDrinkBtn.style.display = "none";
+    } else if (showOwnExplanation){
+      titleEl.textContent = "JOUW STICKER IS KLAAR";
+      ownExpl.classList.remove("hidden");
+      drinksDiv.style.display = "none";
+      newDrinkBtn.style.display = "none";
+    } else {
+      ownExpl.classList.add("hidden");
+      drinksDiv.style.display = "grid";
+      newDrinkBtn.style.display = "block";
+
+      const title = chipOwner
+        ? `WAT WIL JE DAT ${chipOwner.toUpperCase()} VOOR JE HAALT?`
+        : 'KIES JE DRANKJE';
+      titleEl.textContent = title;
+    }
+
+    drinksDiv.innerHTML = "";
+    if (!inInsight && !showOwnExplanation){
+      drinks.forEach(d=>{
+        const btn = document.createElement('button');
+        btn.className = 'tile block w-full rounded-lg p-3 bg-white/90 shadow-sm ring-1 ring-white/60 text-left';
+        btn.innerHTML = `
+          <div class="font-semibold text-gray-900">${escapeHtml(d.name)}</div>
+          <div class="text-sm text-gray-600 mt-1">€${Number(d.price).toFixed(2)}</div>
+        `;
+        btn.onclick = async ()=>{
+          if(!scannerName){
+            showError("Je naam is niet bekend, vul eerst je naam in.");
+            return;
           }
-        }
-
-        updateOwnChipFlag();
-        hideAll();
-        renderMenu();
-
-      }catch(e){
-        console.error('Fout bij verwerken naamvraag:', e);
-        showError('Er ging iets mis, probeer opnieuw.');
-        hideAll();
-        renderMenu();
-      }finally{
-        showLoading(false);
-      }
-    };
-
-    /* REST VAN JE CODE (menu rendering, drankjes, bestellijst,
-       scores, eindafrekening) BLIJFT IDENTIEK EN ONGEBRUIKT
-       VOOR DE BUGFIX — GEEN AANPASSINGEN HIER BENEDEN */
-    // RENDER MENU
-    function renderMenu(){
-      hideAll();
-
-      const titleEl = $('menuTitle');
-      const drinksDiv = $('drinks');
-      const ownExpl   = $('ownChipExplanation');
-      const newDrinkBtn = $('newDrinkScreenBtn');
-
-      const inInsight = noChipMode;
-      const showOwnExplanation = !inInsight && isOwnChip;
-
-      if (inInsight){
-        titleEl.textContent = "JOUW OVERZICHT";
-        ownExpl.classList.add("hidden");
-        drinksDiv.style.display = "none";
-        newDrinkBtn.style.display = "none";
-      } else if (showOwnExplanation){
-        titleEl.textContent = "JOUW STICKER IS KLAAR";
-        ownExpl.classList.remove("hidden");
-        drinksDiv.style.display = "none";
-        newDrinkBtn.style.display = "none";
-      } else {
-        ownExpl.classList.add("hidden");
-        drinksDiv.style.display = "grid";
-        newDrinkBtn.style.display = "block";
-
-        const title = chipOwner
-          ? `WAT WIL JE DAT ${chipOwner.toUpperCase()} VOOR JE HAALT?`
-          : 'KIES JE DRANKJE';
-        titleEl.textContent = title;
-      }
-
-      drinksDiv.innerHTML = "";
-      if (!inInsight && !showOwnExplanation){
-        drinks.forEach(d=>{
-          const btn = document.createElement('button');
-          btn.className = 'tile block w-full rounded-lg p-3 bg-white/90 shadow-sm ring-1 ring-white/60 text-left';
-          btn.innerHTML = `
-            <div class="font-semibold text-gray-900">${escapeHtml(d.name)}</div>
-            <div class="text-sm text-gray-600 mt-1">€${Number(d.price).toFixed(2)}</div>
-          `;
-          btn.onclick = async ()=>{
-            if(!scannerName){
-              showError("Je naam is niet bekend, vul eerst je naam in.");
-              return;
-            }
-            showLoading(true,'Verwerken...');
-            try{
-              await fetch(apiUrl, {
-                method:'POST',
-                body:new URLSearchParams({
-                  action:'addScan',
-                  chipId,
-                  scanner: scannerName,
-                  drink: d.name,
-                  amount: d.price
-                })
-              });
-              $('confirmText').innerHTML =
-                `${escapeHtml(d.name)} (€${Number(d.price).toFixed(2)}) is doorgegeven aan ${escapeHtml(chipOwner)}.`;
-              hideAll();
-              $('confirm').classList.remove('hidden');
-            }catch(e){
-              console.error(e);
-              showError('Er ging iets mis, probeer opnieuw.');
-            }finally{
-              showLoading(false);
-            }
-          };
-          drinksDiv.appendChild(btn);
-        });
-      }
-
-      $('menu').classList.remove('hidden');
-    }
-
-    // NEW DRINK SCREEN
-    $('newDrinkScreenBtn').onclick = ()=>{
-      hideAll();
-      $('newDrink').classList.remove('hidden');
-    };
-    $('cancelNewDrinkBtn').onclick = ()=>{ renderMenu(); };
-
-    $('addDrinkBtn').onclick = async ()=>{
-      const name = $('newDrinkName').value.trim();
-      const price = parseFloat($('newDrinkPrice').value);
-      if(!name || isNaN(price) || price<=0){
-        showError('Ongeldige naam of prijs.');
-        return;
-      }
-      showLoading(true,'Opslaan...');
-      drinks.push({name, price});
-      $('newDrinkName').value='';
-      $('newDrinkPrice').value='';
-      try{
-        await fetch(apiUrl, {
-          method:'POST',
-          body:new URLSearchParams({action:'setDrinks', drinks:JSON.stringify(drinks)})
-        });
-        drinksCache = drinks;
-        drinksCacheTime = Date.now();
-        localStorage.setItem("drinksCache", JSON.stringify(drinks));
-        localStorage.setItem("drinksCacheTime", drinksCacheTime.toString());
-        renderMenu();
-      }catch(e){
-        console.error(e);
-        showError('Er ging iets mis, probeer opnieuw.');
-      }finally{
-        showLoading(false);
-      }
-    };
-
-    // BESTELLIJST
-    $('bestelOverzichtBtn').onclick = async ()=>{
-      showLoading(true,'Bestellijst laden...');
-      try{
-        const res = await fetch(`${apiUrl}?action=getScans`);
-        const scans = await res.json();
-        const now = Date.now();
-        const THIRTY_MIN = 30*60*1000;
-
-        const recent = scans.filter(s=>{
-          if(s.owner !== chipOwner) return false;
-          const t = new Date(s.timestamp || s.time || s.date || 0).getTime();
-          return isFinite(t) ? (now - t) <= THIRTY_MIN : false;
-        });
-
-        let html = '';
-        if(recent.length===0){
-          html = `<div class="order-panel"><p>Geen recente bestellingen (laatste 30 minuten) voor <strong>${escapeHtml(chipOwner || "deze sticker")}</strong>.</p></div>`;
-        }else{
-          const grouped = {};
-          recent.forEach(s=>{
-            const sc = s.scanner || 'Onbekend';
-            const dr = s.drink || 'Onbekend drankje';
-            if(!grouped[sc]) grouped[sc] = {};
-            grouped[sc][dr] = (grouped[sc][dr] || 0) + 1;
-          });
-
-          Object.entries(grouped).forEach(([scanner, drinksObj])=>{
-            html += `<div class="order-panel"><h4>${escapeHtml(scanner)}</h4><div>`;
-            Object.entries(drinksObj).forEach(([drinkName, count])=>{
-              html += `
-                <div class="order-row">
-                  <div class="order-qty">${count}×</div>
-                  <div class="order-name">${escapeHtml(drinkName)}</div>
-                </div>`;
+          showLoading(true,'Verwerken...');
+          try{
+            await fetch(apiUrl, {
+              method:'POST',
+              body:new URLSearchParams({
+                action:'addScan',
+                chipId,
+                scanner: scannerName,
+                drink: d.name,
+                amount: d.price
+              })
             });
-            html += `</div></div>`;
-          });
-        }
-
-        hideAll();
-        $('bestellijstContent').innerHTML = html;
-        $('bestellijst').classList.remove('hidden');
-
-      }catch(e){
-        console.error(e);
-        showError('Er ging iets mis, probeer opnieuw.');
-      }finally{
-        showLoading(false);
-      }
-    };
-
-    $('backToMenuFromBestel').onclick = renderMenu;
-
-    // SCORES
-    $('scoresBtn').onclick = showScores;
-    $('confirmScoresBtn').onclick = showScores;
-    $('newRoundBtn').onclick = renderMenu;
-    $('backToMenuFromScores').onclick = renderMenu;
-
-    async function showScores(){
-      showLoading(true,'Tussenstand laden...');
-      try{
-        const res = await fetch(`${apiUrl}?action=getScores`);
-        const scores = await res.json();
-        let html = "<ul class='list-disc ml-5'>";
-        if(!scores.length){
-          html += "<li>Nog geen data</li>";
-        }else{
-          scores.forEach(s=>{
-            html += `<li><strong>${escapeHtml(s.owner)}</strong> — ${s.rounds} rondje${s.rounds===1?'':'s'}</li>`;
-          });
-        }
-        html += "</ul>";
-        hideAll();
-        $('scoreList').innerHTML = html;
-        $('scores').classList.remove('hidden');
-      }catch(e){
-        console.error(e);
-        showError('Er ging iets mis, probeer opnieuw.');
-      }finally{
-        showLoading(false);
-      }
+            $('confirmText').innerHTML =
+              `${escapeHtml(d.name)} (€${Number(d.price).toFixed(2)}) is doorgegeven aan ${escapeHtml(chipOwner)}.`;
+            hideAll();
+            $('confirm').classList.remove('hidden');
+          }catch(e){
+            console.error(e);
+            showError('Er ging iets mis, probeer opnieuw.');
+          }finally{
+            showLoading(false);
+          }
+        };
+        drinksDiv.appendChild(btn);
+      });
     }
 
-    // FINAL
-    $('finalBtn').onclick = showFinal;
-    $('backToMenuFromFinal').onclick = renderMenu;
+    $('menu').classList.remove('hidden');
+  }
 
-    $('markPaidBtn').onclick = async ()=>{
-      if(!scannerName){
-        showError("Je naam is niet bekend, dus we kunnen je verzoek niet koppelen.");
-        return;
-      }
-      showLoading(true,'Bezig met registreren...');
-      try{
-        await fetch(apiUrl, {
-          method:'POST',
-          body:new URLSearchParams({action:'markAsPaid', name:scannerName})
+  // NEW DRINK SCREEN
+  $('newDrinkScreenBtn').onclick = ()=>{
+    hideAll();
+    $('newDrink').classList.remove('hidden');
+  };
+  $('cancelNewDrinkBtn').onclick = ()=>{ renderMenu(); };
+
+  $('addDrinkBtn').onclick = async ()=>{
+    const name = $('newDrinkName').value.trim();
+    const price = parseFloat($('newDrinkPrice').value);
+    if(!name || isNaN(price) || price<=0){
+      showError('Ongeldige naam of prijs.');
+      return;
+    }
+    showLoading(true,'Opslaan...');
+    drinks.push({name, price});
+    $('newDrinkName').value='';
+    $('newDrinkPrice').value='';
+    try{
+      await fetch(apiUrl, {
+        method:'POST',
+        body:new URLSearchParams({action:'setDrinks', drinks:JSON.stringify(drinks)})
+      });
+      drinksCache = drinks;
+      drinksCacheTime = Date.now();
+      localStorage.setItem("drinksCache", JSON.stringify(drinks));
+      localStorage.setItem("drinksCacheTime", drinksCacheTime.toString());
+      renderMenu();
+    }catch(e){
+      console.error(e);
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+  };
+
+  // BESTELLIJST
+  $('bestelOverzichtBtn').onclick = async ()=>{
+    showLoading(true,'Bestellijst laden...');
+    try{
+      const res = await fetch(`${apiUrl}?action=getScans`);
+      const scans = await res.json();
+      const now = Date.now();
+      const THIRTY_MIN = 30*60*1000;
+
+      const recent = scans.filter(s=>{
+        if(s.owner !== chipOwner) return false;
+        const t = new Date(s.timestamp || s.time || s.date || 0).getTime();
+        return isFinite(t) ? (now - t) <= THIRTY_MIN : false;
+      });
+
+      let html = '';
+      if(recent.length===0){
+        html = `<div class="order-panel"><p>Geen recente bestellingen (laatste 30 minuten) voor <strong>${escapeHtml(chipOwner || "deze sticker")}</strong>.</p></div>`;
+      }else{
+        const grouped = {};
+        recent.forEach(s=>{
+          const sc = s.scanner || 'Onbekend';
+          const dr = s.drink || 'Onbekend drankje';
+          if(!grouped[sc]) grouped[sc] = {};
+          grouped[sc][dr] = (grouped[sc][dr] || 0) + 1;
         });
-        $('finalSettlementStatus').textContent = '✅ Je verzoek is ingediend!';
-      }catch(e){
-        console.error(e);
-        showError('Er ging iets mis, probeer opnieuw.');
-      }finally{
-        showLoading(false);
-      }
-    };
 
-    async function showFinal(){
-      showLoading(true,'Eindafrekening laden...');
-      try{
-        const res = await fetch(`${apiUrl}?action=getFinal`);
-        const data = await res.json();
-
-        let htmlTotals = '';
-        if(!data.result?.length){
-          htmlTotals = '<p>Nog geen data</p>';
-        }else{
-          htmlTotals += '<div class="font-semibold mb-2">Totaal uitgegeven per persoon:</div><ul class="list-disc ml-5">';
-          data.result.forEach(t=>{
-            htmlTotals += `<li><strong>${escapeHtml(t.name)}</strong> — €${Number(t.balance).toFixed(2)}</li>`;
+        Object.entries(grouped).forEach(([scanner, drinksObj])=>{
+          html += `<div class="order-panel"><h4>${escapeHtml(scanner)}</h4><div>`;
+          Object.entries(drinksObj).forEach(([drinkName, count])=>{
+            html += `
+              <div class="order-row">
+                <div class="order-qty">${count}×</div>
+                <div class="order-name">${escapeHtml(drinkName)}</div>
+              </div>`;
           });
-          htmlTotals += '</ul>';
-        }
-
-        let htmlSettle = '';
-        if(!data.settlements?.length){
-          htmlSettle = '<p>Geen verrekeningen nodig.</p>';
-        }else{
-          htmlSettle += '<div class="font-semibold mt-2">Verrekeningen</div><ul class="list-disc ml-5">';
-          data.settlements.forEach(s=>{
-            htmlSettle += `<li>${escapeHtml(s.from)} betaalt €${Number(s.amount).toFixed(2)} aan ${escapeHtml(s.to)}</li>`;
-          });
-          htmlSettle += '</ul>';
-        }
-
-        hideAll();
-        $('finalTotals').innerHTML = htmlTotals;
-        $('finalSettlements').innerHTML = htmlSettle;
-        $('final').classList.remove('hidden');
-      }catch(e){
-        console.error(e);
-        showError('Er ging iets mis, probeer opnieuw.');
-      }finally{
-        showLoading(false);
+          html += `</div></div>`;
+        });
       }
+
+      hideAll();
+      $('bestellijstContent').innerHTML = html;
+      $('bestellijst').classList.remove('hidden');
+
+    }catch(e){
+      console.error(e);
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
     }
+  };
 
-    window.addEventListener('DOMContentLoaded', init);
-  </script>
+  $('backToMenuFromBestel').onclick = renderMenu;
 
+  // SCORES
+  $('scoresBtn').onclick = showScores;
+  $('confirmScoresBtn').onclick = showScores;
+  $('newRoundBtn').onclick = renderMenu;
+  $('backToMenuFromScores').onclick = renderMenu;
+
+  async function showScores(){
+    showLoading(true,'Tussenstand laden...');
+    try{
+      const res = await fetch(`${apiUrl}?action=getScores`);
+      const scores = await res.json();
+      let html = "<ul class='list-disc ml-5'>";
+      if(!scores.length){
+        html += "<li>Nog geen data</li>";
+      }else{
+        scores.forEach(s=>{
+          html += `<li><strong>${escapeHtml(s.owner)}</strong> — ${s.rounds} rondje${s.rounds===1?'':'s'}</li>`;
+        });
+      }
+      html += "</ul>";
+      hideAll();
+      $('scoreList').innerHTML = html;
+      $('scores').classList.remove('hidden');
+    }catch(e){
+      console.error(e);
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+  }
+
+  // FINAL
+  $('finalBtn').onclick = showFinal;
+  $('backToMenuFromFinal').onclick = renderMenu;
+
+  $('markPaidBtn').onclick = async ()=>{
+    if(!scannerName){
+      showError("Je naam is niet bekend, dus we kunnen je verzoek niet koppelen.");
+      return;
+    }
+    showLoading(true,'Bezig met registreren...');
+    try{
+      await fetch(apiUrl, {
+        method:'POST',
+        body:new URLSearchParams({action:'markAsPaid', name:scannerName})
+      });
+      $('finalSettlementStatus').textContent = '✅ Je verzoek is ingediend!';
+    }catch(e){
+      console.error(e);
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+  };
+
+  async function showFinal(){
+    showLoading(true,'Eindafrekening laden...');
+    try{
+      const res = await fetch(`${apiUrl}?action=getFinal`);
+      const data = await res.json();
+
+      let htmlTotals = '';
+      if(!data.result?.length){
+        htmlTotals = '<p>Nog geen data</p>';
+      }else{
+        htmlTotals += '<div class="font-semibold mb-2">Totaal uitgegeven per persoon:</div><ul class="list-disc ml-5">';
+        data.result.forEach(t=>{
+          htmlTotals += `<li><strong>${escapeHtml(t.name)}</strong> — €${Number(t.balance).toFixed(2)}</li>`;
+        });
+        htmlTotals += '</ul>';
+      }
+
+      let htmlSettle = '';
+      if(!data.settlements?.length){
+        htmlSettle = '<p>Geen verrekeningen nodig.</p>';
+      }else{
+        htmlSettle += '<div class="font-semibold mt-2">Verrekeningen</div><ul class="list-disc ml-5">';
+        data.settlements.forEach(s=>{
+          htmlSettle += `<li>${escapeHtml(s.from)} betaalt €${Number(s.amount).toFixed(2)} aan ${escapeHtml(s.to)}</li>`;
+        });
+        htmlSettle += '</ul>';
+      }
+
+      hideAll();
+      $('finalTotals').innerHTML = htmlTotals;
+      $('finalSettlements').innerHTML = htmlSettle;
+      $('final').classList.remove('hidden');
+    }catch(e){
+      console.error(e);
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', init);
+</script>
 </body>
 </html>
