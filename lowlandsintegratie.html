@@ -447,19 +447,12 @@
     }
     setInterval(refreshCaches, CACHE_REFRESH_INTERVAL);
 
-    function updateOwnChipFlag(){
-      if (chipId && myChipId && myChipId === chipId){
-        isOwnChip = true;
-      }
-      if (scannerName && chipOwner && scannerName === chipOwner){
-        isOwnChip = true;
-        if (chipId) {
-          localStorage.setItem('myChipId', chipId);
-          myChipId = chipId;
-        }
-      }
-    }
-
+function updateOwnChipFlag(){
+  // Eigen sticker = ALLEEN de chip waarvan de id in myChipId staat,
+  // gezet tijdens de first-time flow. Niet afleiden uit de naam.
+  isOwnChip = !!(chipId && myChipId && myChipId === chipId);
+}
+    
     async function resolveOwnerWithAutoSync(){
       if (!chipId) {
         chipOwner = "";
