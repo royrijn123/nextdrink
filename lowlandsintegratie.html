@@ -329,6 +329,10 @@
   let isOwnChip = false;
   let myChipId = localStorage.getItem('myChipId') || null;
 
+  // Owner-fetch status
+  let ownerFetchFailed = false;   // true = er ging iets mis bij getOwner (timeout/fout)
+  let ownerFromSheet   = false;   // true = we hebben echt iets non-leeg uit de sheet gekregen
+
   // CACHE (alleen voor drankjes)
   let drinksCache = JSON.parse(localStorage.getItem("drinksCache") || "null");
   let drinksCacheTime = parseInt(localStorage.getItem("drinksCacheTime") || "0", 10) || 0;
@@ -370,7 +374,7 @@
     }, 3000);
   }
 
-  async function fetchWithTimeout(url, options={}, timeout=2500) {
+  async function fetchWithTimeout(url, options={}, timeout=6000) { // timeout iets ruimer
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
@@ -404,7 +408,7 @@
       return;
     }
     try{
-      const resp = await fetchWithTimeout(`${apiUrl}?action=getDrinks`, {}, 1500);
+      const resp = await fetchWithTimeout(`${apiUrl}?action=getDrinks`, {}, 3000);
       const list = await resp.json();
       drinks = list;
       drinksCache = list;
@@ -431,7 +435,7 @@
   // Periodieke refresh alleen voor drankjes
   async function refreshCaches(){
     try{
-      const rD = await fetchWithTimeout(`${apiUrl}?action=getDrinks`,{},1500);
+      const rD = await fetchWithTimeout(`${apiUrl}?action=getDrinks`,{},3000);
       const newDrinks = await rD.json();
       drinksCache = newDrinks;
       drinksCacheTime = Date.now();
@@ -449,21 +453,36 @@
     isOwnChip = !!(chipId && myChipId && myChipId === chipId);
   }
 
-  // CHIPOWNER ALTIJD UIT SHEETS
+  // CHIPOWNER ALTIJD UIT SHEETS (met status)
   async function resolveOwner(){
-    if (!chipId) {
-      chipOwner = "";
-      return;
-    }
+    ownerFetchFailed = false;
+    ownerFromSheet   = false;
+    chipOwner        = "";
+
+    if (!chipId) return;
+
     try{
       const resp = await fetchWithTimeout(
         `${apiUrl}?action=getOwner&chipId=${encodeURIComponent(chipId)}`,
         {},
-        2500
+        6000
       );
-      chipOwner = (await resp.text()).trim();
+      if (!resp.ok) {
+        console.error("getOwner HTTP fout:", resp.status);
+        ownerFetchFailed = true;
+        return;
+      }
+      const text = (await resp.text()).trim();
+      if (text){
+        chipOwner = text;
+        ownerFromSheet = true;
+      } else {
+        chipOwner = "";
+        ownerFromSheet = false; // echt niets in sheet
+      }
     }catch(e){
       console.error("Fout bij getOwner:", e);
+      ownerFetchFailed = true;
       chipOwner = "";
     }
   }
@@ -477,13 +496,36 @@
     const hasScanner = !!scannerName;
     const hasOwner   = !!chipOwner;
 
-    // 4. beide bekend → direct naar menu
-    if (hasScanner && hasOwner){
-      updateOwnChipFlag();
+    // === 0. EIGEN STICKER ALTIJD EERST CHECKEN ===
+    updateOwnChipFlag();
+    if (isOwnChip){
+      // Als we de naam niet uit de sheet kregen, gebruik dan eventueel de scannerName als fallback
+      if (!hasOwner && hasScanner){
+        chipOwner = scannerName;
+      }
+
+      // Nog geen scannerName bekend → 1x vragen wie jij bent
+      if (!hasScanner){
+        nameQuestionMode = 'askScannerOwn';
+        hideAll();
+        $('nameQuestionTitle').textContent = 'Dit is jouw eigen sticker';
+        $('nameQuestionBody').textContent =
+          'Vul je naam in zodat we je bestellingen aan jouw sticker kunnen koppelen.';
+        $('nameQuestionInput').value = '';
+        $('nameQuestion').classList.remove('hidden');
+        return "nameQuestion";
+      }
+
+      // Eigen sticker + scannerName bekend → direct naar menu (eigen sticker uitleg)
       return "menu";
     }
 
-    // 1. chipOwner bekend, scanner niet → 'Je hebt de sticker van X gescand'
+    // === 1. Beide bekend (geen eigen sticker) → direct menu ===
+    if (hasScanner && hasOwner){
+      return "menu";
+    }
+
+    // === 2. chipOwner bekend, scanner niet → 'Je hebt de sticker van X gescand' ===
     if (hasOwner && !hasScanner){
       nameQuestionMode = 'askScanner';
       hideAll();
@@ -495,8 +537,17 @@
       return "nameQuestion";
     }
 
-    // 2. scanner bekend, owner niet → sticker is nog niet gekoppeld → eigenaar vragen
+    // === 3. scanner bekend, owner niet ===
     if (!hasOwner && hasScanner){
+
+      // 3a. Er ging iets mis bij het ophalen van de owner → GEEN 'sticker nog niet gekoppeld'
+      if (ownerFetchFailed){
+        // Toon fout en ga naar menu zonder iemand te laten overschrijven
+        showError('We konden de gekoppelde naam van deze sticker nu niet ophalen. Probeer het zo nog een keer.');
+        return "menu";
+      }
+
+      // 3b. Geen fout, maar echt geen owner in sheet → sticker nog niet gekoppeld
       nameQuestionMode = 'askOwner';
       hideAll();
       $('nameQuestionTitle').textContent = 'Sticker nog niet gekoppeld';
@@ -507,7 +558,7 @@
       return "nameQuestion";
     }
 
-    // 3. beiden onbekend → firstTime scherm (eigen sticker claimen)
+    // === 4. beiden onbekend → firstTime scherm (eigen sticker claimen) ===
     if (!hasOwner && !hasScanner){
       hideAll();
       $('firstTime').classList.remove('hidden');
@@ -592,7 +643,7 @@
     renderMenu();
   };
 
-  // NAAMVRAAG HANDLER (scenario 1 & 2) – ook hier geen wachten meer op fetch
+  // NAAMVRAAG HANDLER (scenario 1 & 2 & eigen sticker zonder scannerName)
   $('nameQuestionBtn').onclick = ()=>{
     const val = $('nameQuestionInput').value.trim();
     if(!val){
@@ -600,10 +651,15 @@
       return;
     }
 
-    if (nameQuestionMode === 'askScanner'){
+    if (nameQuestionMode === 'askScanner' || nameQuestionMode === 'askScannerOwn'){
       // eigen naam van de scanner invoeren
       scannerName = val;
       localStorage.setItem('scannerName', scannerName);
+
+      // Als het je eigen sticker was, en er geen owner uit sheet kwam, gebruik deze naam ook als owner in UI
+      if (nameQuestionMode === 'askScannerOwn' && !chipOwner){
+        chipOwner = scannerName;
+      }
     }
     else if (nameQuestionMode === 'askOwner'){
       // eigenaar van deze sticker invoeren
@@ -682,7 +738,7 @@
               })
             });
             $('confirmText').innerHTML =
-              `${escapeHtml(d.name)} (€${Number(d.price).toFixed(2)}) is doorgegeven aan ${escapeHtml(chipOwner)}.`;
+              `${escapeHtml(d.name)} (€${Number(d.price).toFixed(2)}) is doorgegeven aan ${escapeHtml(chipOwner || 'deze sticker')}.`;
             hideAll();
             $('confirm').classList.remove('hidden');
           }catch(e){
