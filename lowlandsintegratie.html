@@ -445,8 +445,7 @@
 
   // EIGEN STICKER LOGICA
   function updateOwnChipFlag(){
-    // Eigen sticker = ALLEEN de chip waarvan de id in myChipId staat,
-    // gezet tijdens de first-time flow. Niet afleiden uit de naam.
+    // Eigen sticker = ALLEEN de chip waarvan de id in myChipId staat
     isOwnChip = !!(chipId && myChipId && myChipId === chipId);
   }
 
@@ -558,37 +557,32 @@
   }
 
   // FIRST TIME FLOW (beiden onbekend → eigen sticker claimen)
-  $('firstTimeContinueBtn').onclick = async ()=>{
+  $('firstTimeContinueBtn').onclick = ()=>{
     const name = $('firstTimeNameInput').value.trim();
     if(!name){
       showError('Voer een naam in.');
       return;
     }
-    showLoading(true,'Verwerken...');
 
+    // Direct lokaal zetten
     scannerName = name;
     chipOwner   = name;
     localStorage.setItem('scannerName', scannerName);
 
-    try{
-      if (chipId){
-        await fetch(apiUrl, {
-          method:'POST',
-          body:new URLSearchParams({action:'setOwner', chipId, owner:chipOwner})
-        });
+    if (chipId){
+      // Fire-and-forget naar Google Sheet (niet op wachten)
+      fetch(apiUrl, {
+        method:'POST',
+        body:new URLSearchParams({action:'setOwner', chipId, owner:chipOwner})
+      }).catch(e => console.error('setOwner (firstTime) failed:', e));
 
-        // Alleen je eigen chipId onthouden voor eigen-sticker logica
-        localStorage.setItem('myChipId', chipId);
-        myChipId = chipId;
-        updateOwnChipFlag();
-      }
-    }catch(e){
-      console.error(e);
-      showError('Er ging iets mis, probeer opnieuw.');
-    }finally{
-      showLoading(false);
+      // Eigen sticker markeren
+      localStorage.setItem('myChipId', chipId);
+      myChipId = chipId;
+      updateOwnChipFlag();
     }
 
+    // Meteen door naar postName, geen lange "Verwerken..."
     hideAll();
     $('postName').classList.remove('hidden');
   };
@@ -598,44 +592,34 @@
     renderMenu();
   };
 
-  // NAAMVRAAG HANDLER (scenario 1 & 2)
-  $('nameQuestionBtn').onclick = async ()=>{
+  // NAAMVRAAG HANDLER (scenario 1 & 2) – ook hier geen wachten meer op fetch
+  $('nameQuestionBtn').onclick = ()=>{
     const val = $('nameQuestionInput').value.trim();
     if(!val){
       showError('Voer een naam in.');
       return;
     }
-    showLoading(true,'Verwerken...');
 
-    try{
-      if (nameQuestionMode === 'askScanner'){
-        // eigen naam van de scanner invoeren
-        scannerName = val;
-        localStorage.setItem('scannerName', scannerName);
-      }
-      else if (nameQuestionMode === 'askOwner'){
-        // eigenaar van deze sticker invoeren
-        chipOwner = val;
-        if (chipId){
-          await fetch(apiUrl, {
-            method:"POST",
-            body:new URLSearchParams({action:"setOwner", chipId, owner:chipOwner})
-          });
-        }
-      }
-
-      updateOwnChipFlag();
-      hideAll();
-      renderMenu();
-
-    }catch(e){
-      console.error('Fout bij verwerken naamvraag:', e);
-      showError('Er ging iets mis, probeer opnieuw.');
-      hideAll();
-      renderMenu();
-    }finally{
-      showLoading(false);
+    if (nameQuestionMode === 'askScanner'){
+      // eigen naam van de scanner invoeren
+      scannerName = val;
+      localStorage.setItem('scannerName', scannerName);
     }
+    else if (nameQuestionMode === 'askOwner'){
+      // eigenaar van deze sticker invoeren
+      chipOwner = val;
+      if (chipId){
+        // Fire-and-forget naar Google Sheet
+        fetch(apiUrl, {
+          method:"POST",
+          body:new URLSearchParams({action:"setOwner", chipId, owner:chipOwner})
+        }).catch(e => console.error('setOwner (nameQuestion) failed:', e));
+      }
+    }
+
+    updateOwnChipFlag();
+    hideAll();
+    renderMenu();
   };
 
   // RENDER MENU
