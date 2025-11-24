@@ -455,7 +455,7 @@
       const resp = await fetchWithTimeout(
         `${apiUrl}?action=getOwner&chipId=${encodeURIComponent(chipId)}`,
         {},
-        6000
+        10000
       );
       if (!resp.ok) {
         console.error("getOwner HTTP fout:", resp.status);
@@ -463,6 +463,7 @@
         return;
       }
       chipOwner = (await resp.text()).trim();
+      console.log("getOwner ->", chipOwner);
     }catch(e){
       console.error("Fout bij getOwner:", e);
       chipOwner = "";
@@ -542,6 +543,36 @@
     return "menu";
   }
 
+  // CENTRALE HELPER: OWNER OPSLAAN IN SHEETS
+  async function setOwnerOnServer(ownerName, markAsOwnSticker = false){
+    if (!chipId) return;
+    showLoading(true,'Sticker koppelen...');
+    try{
+      const resp = await fetchWithTimeout(apiUrl, {
+        method:'POST',
+        body:new URLSearchParams({action:'setOwner', chipId, owner:ownerName})
+      }, 10000);
+
+      let txt = '';
+      try { txt = (await resp.text()).trim(); } catch(e){}
+      if (!resp.ok){
+        console.error('setOwner HTTP fout:', resp.status, txt);
+        showError('Het koppelen kan iets langer duren, maar je naam is opgeslagen.');
+      }
+    }catch(e){
+      console.error('setOwner netwerk/timeout:', e);
+      showError('Verbinding is traag. Je naam is waarschijnlijk wel opgeslagen, controleer het later nog eens.');
+    }finally{
+      showLoading(false);
+    }
+
+    if (markAsOwnSticker){
+      localStorage.setItem('myChipId', chipId);
+      myChipId = chipId;
+      updateOwnChipFlag();
+    }
+  }
+
   async function init(){
     showLoading(true,'Initialiseren...');
     try{
@@ -593,29 +624,7 @@
     localStorage.setItem('scannerName', scannerName);
 
     if (chipId){
-      showLoading(true,'Sticker koppelen...');
-      try{
-        const resp = await fetch(apiUrl, {
-          method:'POST',
-          body:new URLSearchParams({action:'setOwner', chipId, owner:chipOwner})
-        });
-        const txt = (await resp.text()).trim();
-        if (!resp.ok || (txt && txt !== 'OK' && !txt.startsWith('OK'))) {
-          console.error('setOwner(firstTime) fout:', resp.status, txt);
-          showError('Sticker kon niet gekoppeld worden, probeer later nog eens.');
-        }
-
-        // eigen sticker markeren
-        localStorage.setItem('myChipId', chipId);
-        myChipId = chipId;
-        updateOwnChipFlag();
-
-      }catch(e){
-        console.error('setOwner(firstTime) failed:', e);
-        showError('Sticker kon niet gekoppeld worden (netwerkfout).');
-      }finally{
-        showLoading(false);
-      }
+      await setOwnerOnServer(chipOwner, true);
     }
 
     hideAll();
@@ -643,49 +652,14 @@
       // bij eigen sticker zonder owner → gebruik deze naam als owner in UI en schrijf naar sheet
       if (nameQuestionMode === 'askScannerOwn' && chipId){
         chipOwner = scannerName;
-        showLoading(true,'Sticker koppelen...');
-        try{
-          const resp = await fetch(apiUrl, {
-            method:'POST',
-            body:new URLSearchParams({action:'setOwner', chipId, owner:chipOwner})
-          });
-          const txt = (await resp.text()).trim();
-          if (!resp.ok || (txt && txt !== 'OK' && !txt.startsWith('OK'))) {
-            console.error('setOwner(askScannerOwn) fout:', resp.status, txt);
-            showError('Sticker kon niet gekoppeld worden, probeer later nog eens.');
-          }
-          localStorage.setItem('myChipId', chipId);
-          myChipId = chipId;
-          updateOwnChipFlag();
-        }catch(e){
-          console.error('setOwner(askScannerOwn) failed:', e);
-          showError('Sticker kon niet gekoppeld worden (netwerkfout).');
-        }finally{
-          showLoading(false);
-        }
+        await setOwnerOnServer(chipOwner, true);
       }
     }
     else if (nameQuestionMode === 'askOwner'){
       // eigenaar van deze sticker invoeren
       chipOwner = val;
       if (chipId){
-        showLoading(true,'Sticker koppelen...');
-        try{
-          const resp = await fetch(apiUrl, {
-            method:"POST",
-            body:new URLSearchParams({action:"setOwner", chipId, owner:chipOwner})
-          });
-          const txt = (await resp.text()).trim();
-          if (!resp.ok || (txt && txt !== 'OK' && !txt.startsWith('OK'))) {
-            console.error('setOwner(askOwner) fout:', resp.status, txt);
-            showError('Sticker kon niet gekoppeld worden, probeer later nog eens.');
-          }
-        }catch(e){
-          console.error('setOwner(askOwner) failed:', e);
-          showError('Sticker kon niet gekoppeld worden (netwerkfout).');
-        }finally{
-          showLoading(false);
-        }
+        await setOwnerOnServer(chipOwner, false);
       }
     }
 
@@ -811,7 +785,7 @@
   $('bestelOverzichtBtn').onclick = async ()=>{
     showLoading(true,'Bestellijst laden...');
     try{
-      const res = await fetch(`${apiUrl}?action=getScans`);
+      const res = await fetchWithTimeout(`${apiUrl}?action=getScans`, {}, 10000);
       const scans = await res.json();
       const now = Date.now();
       const THIRTY_MIN = 30*60*1000;
@@ -870,7 +844,7 @@
   async function showScores(){
     showLoading(true,'Tussenstand laden...');
     try{
-      const res = await fetch(`${apiUrl}?action=getScores`);
+      const res = await fetchWithTimeout(`${apiUrl}?action=getScores`, {}, 10000);
       const scores = await res.json();
       let html = "<ul class='list-disc ml-5'>";
       if(!scores.length){
@@ -903,10 +877,10 @@
     }
     showLoading(true,'Bezig met registreren...');
     try{
-      await fetch(apiUrl, {
+      await fetchWithTimeout(apiUrl, {
         method:'POST',
         body:new URLSearchParams({action:'markAsPaid', name:scannerName})
-      });
+      }, 10000);
       $('finalSettlementStatus').textContent = '✅ Je verzoek is ingediend!';
     }catch(e){
       console.error(e);
@@ -919,7 +893,7 @@
   async function showFinal(){
     showLoading(true,'Eindafrekening laden...');
     try{
-      const res = await fetch(`${apiUrl}?action=getFinal`);
+      const res = await fetchWithTimeout(`${apiUrl}?action=getFinal`, {}, 10000);
       const data = await res.json();
 
       let htmlTotals = '';
