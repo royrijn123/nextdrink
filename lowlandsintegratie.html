@@ -317,9 +317,9 @@
   const $ = id => document.getElementById(id);
   const apiUrl = "https://script.google.com/macros/s/AKfycbwC0H_Dd8ea4NPv1SEmRQl36a9d78L_VrNbYR1cKrNuQ_ShV9agfgPKk_VgFmP0Oe_8VA/exec";
 
-  // chipId uitlezen
+  // chipId uit URL
   const chipIdRaw = new URLSearchParams(window.location.search).get('chipId');
-  const chipId = (chipIdRaw && chipIdRaw !== 'null' && chipIdRaw !== 'undefined') ? chipIdRaw : null;
+  const chipId = (chipIdRaw && chipIdRaw !== 'null' && chipIdRaw !== 'undefined') ? chipIdRaw.trim() : null;
   const noChipMode = !chipId;
 
   // Alleen scannerName + myChipId in localStorage
@@ -328,10 +328,6 @@
   let drinks = [];
   let isOwnChip = false;
   let myChipId = localStorage.getItem('myChipId') || null;
-
-  // Owner-fetch status
-  let ownerFetchFailed = false;   // true = er ging iets mis bij getOwner (timeout/fout)
-  let ownerFromSheet   = false;   // true = we hebben echt iets non-leeg uit de sheet gekregen
 
   // CACHE (alleen voor drankjes)
   let drinksCache = JSON.parse(localStorage.getItem("drinksCache") || "null");
@@ -368,13 +364,11 @@
     errorTimeout = setTimeout(() => {
       banner.classList.remove('opacity-100');
       banner.classList.add('opacity-0');
-      setTimeout(() => {
-        banner.classList.add('hidden');
-      }, 250);
+      setTimeout(() => banner.classList.add('hidden'), 250);
     }, 3000);
   }
 
-  async function fetchWithTimeout(url, options={}, timeout=6000) { // timeout iets ruimer
+  async function fetchWithTimeout(url, options={}, timeout=6000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
@@ -408,7 +402,7 @@
       return;
     }
     try{
-      const resp = await fetchWithTimeout(`${apiUrl}?action=getDrinks`, {}, 3000);
+      const resp = await fetchWithTimeout(`${apiUrl}?action=getDrinks`, {}, 4000);
       const list = await resp.json();
       drinks = list;
       drinksCache = list;
@@ -432,10 +426,10 @@
     }
   }
 
-  // Periodieke refresh alleen voor drankjes
+  // Periodieke refresh voor drankjes (optioneel)
   async function refreshCaches(){
     try{
-      const rD = await fetchWithTimeout(`${apiUrl}?action=getDrinks`,{},3000);
+      const rD = await fetchWithTimeout(`${apiUrl}?action=getDrinks`,{},4000);
       const newDrinks = await rD.json();
       drinksCache = newDrinks;
       drinksCacheTime = Date.now();
@@ -449,16 +443,12 @@
 
   // EIGEN STICKER LOGICA
   function updateOwnChipFlag(){
-    // Eigen sticker = ALLEEN de chip waarvan de id in myChipId staat
     isOwnChip = !!(chipId && myChipId && myChipId === chipId);
   }
 
-  // CHIPOWNER ALTIJD UIT SHEETS (met status)
+  // CHIPOWNER UIT GOOGLE SHEETS
   async function resolveOwner(){
-    ownerFetchFailed = false;
-    ownerFromSheet   = false;
-    chipOwner        = "";
-
+    chipOwner = "";
     if (!chipId) return;
 
     try{
@@ -469,20 +459,12 @@
       );
       if (!resp.ok) {
         console.error("getOwner HTTP fout:", resp.status);
-        ownerFetchFailed = true;
+        chipOwner = "";
         return;
       }
-      const text = (await resp.text()).trim();
-      if (text){
-        chipOwner = text;
-        ownerFromSheet = true;
-      } else {
-        chipOwner = "";
-        ownerFromSheet = false; // echt niets in sheet
-      }
+      chipOwner = (await resp.text()).trim();
     }catch(e){
       console.error("Fout bij getOwner:", e);
-      ownerFetchFailed = true;
       chipOwner = "";
     }
   }
@@ -496,16 +478,12 @@
     const hasScanner = !!scannerName;
     const hasOwner   = !!chipOwner;
 
-    // === 0. EIGEN STICKER ALTIJD EERST CHECKEN ===
+    // 0. Eerst checken: eigen sticker?
     updateOwnChipFlag();
     if (isOwnChip){
-      // Als we de naam niet uit de sheet kregen, gebruik dan eventueel de scannerName als fallback
-      if (!hasOwner && hasScanner){
-        chipOwner = scannerName;
-      }
-
-      // Nog geen scannerName bekend → 1x vragen wie jij bent
-      if (!hasScanner){
+      // Als naam nog niet bekend maar owner wel → gebruik owner als titel
+      if (!hasScanner && hasOwner){
+        // Vraag 1x om jouw naam
         nameQuestionMode = 'askScannerOwn';
         hideAll();
         $('nameQuestionTitle').textContent = 'Dit is jouw eigen sticker';
@@ -515,17 +493,22 @@
         $('nameQuestion').classList.remove('hidden');
         return "nameQuestion";
       }
-
-      // Eigen sticker + scannerName bekend → direct naar menu (eigen sticker uitleg)
+      if (!hasScanner && !hasOwner){
+        // helemaal blanco → treat as firstTime
+        hideAll();
+        $('firstTime').classList.remove('hidden');
+        return "firstTime";
+      }
+      // eigen sticker + scannerName bekend → direct naar menu
       return "menu";
     }
 
-    // === 1. Beide bekend (geen eigen sticker) → direct menu ===
+    // 1. Beide bekend (geen eigen sticker) → direct menu
     if (hasScanner && hasOwner){
       return "menu";
     }
 
-    // === 2. chipOwner bekend, scanner niet → 'Je hebt de sticker van X gescand' ===
+    // 2. chipOwner bekend, scanner niet → 'Je hebt de sticker van X gescand'
     if (hasOwner && !hasScanner){
       nameQuestionMode = 'askScanner';
       hideAll();
@@ -537,17 +520,8 @@
       return "nameQuestion";
     }
 
-    // === 3. scanner bekend, owner niet ===
+    // 3. scanner bekend, owner niet → sticker nog niet gekoppeld
     if (!hasOwner && hasScanner){
-
-      // 3a. Er ging iets mis bij het ophalen van de owner → GEEN 'sticker nog niet gekoppeld'
-      if (ownerFetchFailed){
-        // Toon fout en ga naar menu zonder iemand te laten overschrijven
-        showError('We konden de gekoppelde naam van deze sticker nu niet ophalen. Probeer het zo nog een keer.');
-        return "menu";
-      }
-
-      // 3b. Geen fout, maar echt geen owner in sheet → sticker nog niet gekoppeld
       nameQuestionMode = 'askOwner';
       hideAll();
       $('nameQuestionTitle').textContent = 'Sticker nog niet gekoppeld';
@@ -558,7 +532,7 @@
       return "nameQuestion";
     }
 
-    // === 4. beiden onbekend → firstTime scherm (eigen sticker claimen) ===
+    // 4. beiden onbekend → firstTime (eigen sticker claimen)
     if (!hasOwner && !hasScanner){
       hideAll();
       $('firstTime').classList.remove('hidden');
@@ -583,9 +557,8 @@
         return;
       }
 
-      // Altijd owner rechtstreeks uit Google Sheets halen
+      // altijd owner uit Google Sheets halen
       await resolveOwner();
-
       updateOwnChipFlag();
 
       const state = await handleNameLogic();
@@ -607,33 +580,44 @@
     }
   }
 
-  // FIRST TIME FLOW (beiden onbekend → eigen sticker claimen)
-  $('firstTimeContinueBtn').onclick = ()=>{
+  // FIRST TIME FLOW (eigen sticker claimen)
+  $('firstTimeContinueBtn').onclick = async ()=>{
     const name = $('firstTimeNameInput').value.trim();
     if(!name){
       showError('Voer een naam in.');
       return;
     }
 
-    // Direct lokaal zetten
     scannerName = name;
     chipOwner   = name;
     localStorage.setItem('scannerName', scannerName);
 
     if (chipId){
-      // Fire-and-forget naar Google Sheet (niet op wachten)
-      fetch(apiUrl, {
-        method:'POST',
-        body:new URLSearchParams({action:'setOwner', chipId, owner:chipOwner})
-      }).catch(e => console.error('setOwner (firstTime) failed:', e));
+      showLoading(true,'Sticker koppelen...');
+      try{
+        const resp = await fetch(apiUrl, {
+          method:'POST',
+          body:new URLSearchParams({action:'setOwner', chipId, owner:chipOwner})
+        });
+        const txt = (await resp.text()).trim();
+        if (!resp.ok || (txt && txt !== 'OK' && !txt.startsWith('OK'))) {
+          console.error('setOwner(firstTime) fout:', resp.status, txt);
+          showError('Sticker kon niet gekoppeld worden, probeer later nog eens.');
+        }
 
-      // Eigen sticker markeren
-      localStorage.setItem('myChipId', chipId);
-      myChipId = chipId;
-      updateOwnChipFlag();
+        // eigen sticker markeren
+        localStorage.setItem('myChipId', chipId);
+        myChipId = chipId;
+        updateOwnChipFlag();
+
+      }catch(e){
+        console.error('setOwner(firstTime) failed:', e);
+        showError('Sticker kon niet gekoppeld worden (netwerkfout).');
+      }finally{
+        showLoading(false);
+      }
     }
 
-    // Meteen door naar postName, geen lange "Verwerken..."
     hideAll();
     $('postName').classList.remove('hidden');
   };
@@ -644,7 +628,7 @@
   };
 
   // NAAMVRAAG HANDLER (scenario 1 & 2 & eigen sticker zonder scannerName)
-  $('nameQuestionBtn').onclick = ()=>{
+  $('nameQuestionBtn').onclick = async ()=>{
     const val = $('nameQuestionInput').value.trim();
     if(!val){
       showError('Voer een naam in.');
@@ -656,20 +640,52 @@
       scannerName = val;
       localStorage.setItem('scannerName', scannerName);
 
-      // Als het je eigen sticker was, en er geen owner uit sheet kwam, gebruik deze naam ook als owner in UI
-      if (nameQuestionMode === 'askScannerOwn' && !chipOwner){
+      // bij eigen sticker zonder owner → gebruik deze naam als owner in UI en schrijf naar sheet
+      if (nameQuestionMode === 'askScannerOwn' && chipId){
         chipOwner = scannerName;
+        showLoading(true,'Sticker koppelen...');
+        try{
+          const resp = await fetch(apiUrl, {
+            method:'POST',
+            body:new URLSearchParams({action:'setOwner', chipId, owner:chipOwner})
+          });
+          const txt = (await resp.text()).trim();
+          if (!resp.ok || (txt && txt !== 'OK' && !txt.startsWith('OK'))) {
+            console.error('setOwner(askScannerOwn) fout:', resp.status, txt);
+            showError('Sticker kon niet gekoppeld worden, probeer later nog eens.');
+          }
+          localStorage.setItem('myChipId', chipId);
+          myChipId = chipId;
+          updateOwnChipFlag();
+        }catch(e){
+          console.error('setOwner(askScannerOwn) failed:', e);
+          showError('Sticker kon niet gekoppeld worden (netwerkfout).');
+        }finally{
+          showLoading(false);
+        }
       }
     }
     else if (nameQuestionMode === 'askOwner'){
       // eigenaar van deze sticker invoeren
       chipOwner = val;
       if (chipId){
-        // Fire-and-forget naar Google Sheet
-        fetch(apiUrl, {
-          method:"POST",
-          body:new URLSearchParams({action:"setOwner", chipId, owner:chipOwner})
-        }).catch(e => console.error('setOwner (nameQuestion) failed:', e));
+        showLoading(true,'Sticker koppelen...');
+        try{
+          const resp = await fetch(apiUrl, {
+            method:"POST",
+            body:new URLSearchParams({action:"setOwner", chipId, owner:chipOwner})
+          });
+          const txt = (await resp.text()).trim();
+          if (!resp.ok || (txt && txt !== 'OK' && !txt.startsWith('OK'))) {
+            console.error('setOwner(askOwner) fout:', resp.status, txt);
+            showError('Sticker kon niet gekoppeld worden, probeer later nog eens.');
+          }
+        }catch(e){
+          console.error('setOwner(askOwner) failed:', e);
+          showError('Sticker kon niet gekoppeld worden (netwerkfout).');
+        }finally{
+          showLoading(false);
+        }
       }
     }
 
