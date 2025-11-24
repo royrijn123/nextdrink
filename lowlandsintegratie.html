@@ -199,6 +199,7 @@
         Verder
       </button>
     </section>
+
     <!-- POST-NAME INSTRUCTIONS (eigen sticker) -->
     <section id="postName" class="hidden text-center flex-1 flex flex-col justify-center">
       <h3 class="nd-heading text-lg font-semibold mb-2">Je bent klaar!</h3>
@@ -321,14 +322,14 @@
   const chipId = (chipIdRaw && chipIdRaw !== 'null' && chipIdRaw !== 'undefined') ? chipIdRaw : null;
   const noChipMode = !chipId;
 
+  // Alleen scannerName + myChipId in localStorage
   let scannerName = (localStorage.getItem('scannerName') || '').trim();
   let chipOwner = '';
   let drinks = [];
   let isOwnChip = false;
   let myChipId = localStorage.getItem('myChipId') || null;
 
-  // CACHE
-  let chipCache = JSON.parse(localStorage.getItem("chipCache") || "{}");
+  // CACHE (alleen voor drankjes)
   let drinksCache = JSON.parse(localStorage.getItem("drinksCache") || "null");
   let drinksCacheTime = parseInt(localStorage.getItem("drinksCacheTime") || "0", 10) || 0;
 
@@ -427,7 +428,7 @@
     }
   }
 
-  // PERIODIEKE REFRESH OWNERS & DRINKS
+  // Periodieke refresh alleen voor drankjes
   async function refreshCaches(){
     try{
       const rD = await fetchWithTimeout(`${apiUrl}?action=getDrinks`,{},1500);
@@ -436,13 +437,8 @@
       drinksCacheTime = Date.now();
       localStorage.setItem("drinksCache", JSON.stringify(newDrinks));
       localStorage.setItem("drinksCacheTime", drinksCacheTime.toString());
-
-      const rO = await fetchWithTimeout(`${apiUrl}?action=getAllOwners`,{},1500);
-      const owners = await rO.json();
-      chipCache = owners;
-      localStorage.setItem("chipCache", JSON.stringify(owners));
     }catch(e){
-      console.warn("Periodic sync failed", e);
+      console.warn("Periodic drinks sync failed", e);
     }
   }
   setInterval(refreshCaches, CACHE_REFRESH_INTERVAL);
@@ -454,47 +450,21 @@
     isOwnChip = !!(chipId && myChipId && myChipId === chipId);
   }
 
-  async function resolveOwnerWithAutoSync(){
+  // CHIPOWNER ALTIJD UIT SHEETS
+  async function resolveOwner(){
     if (!chipId) {
       chipOwner = "";
       return;
     }
-
-    const cachedOwner = chipCache[chipId] || "";
-    let sheetOwner = "";
-
     try{
       const resp = await fetchWithTimeout(
         `${apiUrl}?action=getOwner&chipId=${encodeURIComponent(chipId)}`,
         {},
         2500
       );
-      sheetOwner = (await resp.text()).trim();
+      chipOwner = (await resp.text()).trim();
     }catch(e){
       console.error("Fout bij getOwner:", e);
-      sheetOwner = "";
-    }
-
-    // OWNER uit sheet heeft prioriteit
-    if (sheetOwner){
-      chipOwner = sheetOwner;
-      chipCache[chipId] = sheetOwner;
-      localStorage.setItem("chipCache", JSON.stringify(chipCache));
-    }
-    else if (cachedOwner){
-      chipOwner = cachedOwner;
-
-      // probeer alsnog sheet te syncen
-      fetch(apiUrl, {
-        method:'POST',
-        body:new URLSearchParams({
-          action:'setOwner',
-          chipId,
-          owner: cachedOwner
-        })
-      }).catch(err => console.error("Auto-sync setOwner fail:", err));
-
-    } else {
       chipOwner = "";
     }
   }
@@ -526,19 +496,8 @@
       return "nameQuestion";
     }
 
-    // 2. scanner bekend, owner niet → maar alleen als sticker NOOIT eerder eigenaar had
+    // 2. scanner bekend, owner niet → sticker is nog niet gekoppeld → eigenaar vragen
     if (!hasOwner && hasScanner){
-
-      const previousOwner = chipCache[chipId];
-
-      // PERMANENTE OVERSCHRIJFBEVEILIGING
-      if (previousOwner) {
-        chipOwner = previousOwner;
-        hideAll();
-        renderMenu();
-        return "menu";
-      }
-
       nameQuestionMode = 'askOwner';
       hideAll();
       $('nameQuestionTitle').textContent = 'Sticker nog niet gekoppeld';
@@ -549,7 +508,7 @@
       return "nameQuestion";
     }
 
-    // 3. beiden onbekend → firstTime scherm
+    // 3. beiden onbekend → firstTime scherm (eigen sticker claimen)
     if (!hasOwner && !hasScanner){
       hideAll();
       $('firstTime').classList.remove('hidden');
@@ -564,6 +523,7 @@
     try{
       await loadDrinks();
 
+      // Insight-mode zonder chip
       if (noChipMode){
         chipOwner = scannerName || '';
         isOwnChip = false;
@@ -573,7 +533,8 @@
         return;
       }
 
-      await resolveOwnerWithAutoSync();
+      // Altijd owner rechtstreeks uit Google Sheets halen
+      await resolveOwner();
 
       updateOwnChipFlag();
 
@@ -615,9 +576,8 @@
           method:'POST',
           body:new URLSearchParams({action:'setOwner', chipId, owner:chipOwner})
         });
-        chipCache[chipId] = chipOwner;
-        localStorage.setItem("chipCache", JSON.stringify(chipCache));
 
+        // Alleen je eigen chipId onthouden voor eigen-sticker logica
         localStorage.setItem('myChipId', chipId);
         myChipId = chipId;
         updateOwnChipFlag();
@@ -648,15 +608,6 @@
     showLoading(true,'Verwerken...');
 
     try{
-
-      // ABSOLUTE OVERSCHRIJF BEVEILIGING VOOR EIGENAAR
-      if (nameQuestionMode === 'askOwner' && chipCache[chipId]) {
-        chipOwner = chipCache[chipId];
-        hideAll();
-        renderMenu();
-        return;
-      }
-
       if (nameQuestionMode === 'askScanner'){
         // eigen naam van de scanner invoeren
         scannerName = val;
@@ -670,8 +621,6 @@
             method:"POST",
             body:new URLSearchParams({action:"setOwner", chipId, owner:chipOwner})
           });
-          chipCache[chipId] = chipOwner;
-          localStorage.setItem("chipCache", JSON.stringify(chipCache));
         }
       }
 
