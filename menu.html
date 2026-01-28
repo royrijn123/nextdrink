@@ -19,7 +19,7 @@
 
     @font-face{
       font-family: 'Malnor Sans Demo';
-      src: url('fonts/MalnorSansDEMO-Regular.otf') format('opentype');
+      src: url('fonts/MalnorSansDEMO-Bold.otf') format('opentype');
       font-display: swap;
     }
 
@@ -219,16 +219,16 @@
       <!-- Uitlegblok eigen sticker -->
       <div id="ownChipExplanation" class="hidden mb-4">
         <p class="mb-2">
-          Dit is jouw <strong>eigen sticker</strong>. LLET'S SPLIT houdt bij
-          wie welk rondje voor wie haalt.
+          Dit is jouw <strong>eigen sticker</strong>. Met NextDrink houd je bij
+          wie een rondje haalt en voor wie dat rondje wordt gehaald.
         </p>
         <p class="mb-2">
           <strong>Als jij een rondje gaat halen</strong>, laat je je vrienden
           <strong>jouw sticker</strong> scannen.
         </p>
         <p class="mb-2">
-          <strong>Als een vriend voor jou een drankje haalt</strong>, scan jij
-          <strong>zijn sticker</strong>.
+          <strong>Als een vriend voor jou een rondje haalt</strong>, scan jij
+          <strong>zijn sticker</strong> en selecteer je wat je wilt laten halen
         </p>
         <p>
           Zo ontstaat er automatisch een eerlijk overzicht van alle rondjes,
@@ -696,8 +696,8 @@
       newDrinkBtn.style.display = "block";
 
       const title = chipOwner
-        ? `WAT WIL JE DAT ${chipOwner.toUpperCase()} VOOR JE HAALT?`
-        : 'KIES JE DRANKJE';
+        ? `Wat wil je dat ${chipOwner.toUpperCase()} voor je haalt?`
+        : 'Kies je drankje';
       titleEl.textContent = title;
     }
 
