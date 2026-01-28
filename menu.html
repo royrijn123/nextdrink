@@ -59,7 +59,6 @@
     h1,h2,h3,
     .nd-btn,.logo-x {
       font-family: 'Malnor Sans Demo', system-ui, sans-serif !important;
-      text-transform: uppercase;
       letter-spacing: 0.5px;
       color: var(--nd-purple);
     }
@@ -694,7 +693,7 @@
       newDrinkBtn.style.display = "block";
 
       const title = chipOwner
-        ? `Wat wil je dat ${chipOwner.toUpperCase()} voor je haalt?`
+        ? `Wat wil je dat ${chipOwner} voor je haalt?`
         : 'Kies je drankje';
       titleEl.textContent = title;
     }
