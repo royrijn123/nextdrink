@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
 <title>NextDrink – Intro</title>
 
@@ -12,6 +12,31 @@
   @font-face {
     font-family: 'Malnor Sans DEMO';
     src: url('fonts/MalnorSansDEMO-Bold.otf') format('opentype');
+  }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    width: 100%;
+  }
+
+  body {
+    background-image: url('images/nd-background.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    min-height: 100vh;
+    color: #FFF685;
+    font-family: 'Malnor Sans DEMO', sans-serif;
+    letter-spacing: 1px;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    box-sizing: border-box;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
   }
 
   .btn {
@@ -24,22 +49,38 @@
     font-size: 1.3rem;
     margin-top: 30px;
   }
+
+  img.logo {
+    width: auto;
+    height: 12vh; /* dynamische hoogte voor mobiel */
+    max-height: 120px; /* voorkom dat het te groot wordt op desktop */
+    display: block;
+    margin: 0 auto 40px auto;
+  }
+
+  #introText, #scanState {
+    max-width: 600px;
+    padding: 0 16px;
+  }
+
+  /* Extra fix voor mobiele viewport hoogte */
+  :root {
+    --vh: 1vh;
+  }
 </style>
 </head>
 
-<body class="min-h-screen min-w-screen bg-[url('images/nd-background.png')] bg-cover bg-center bg-no-repeat bg-fixed text-[#FFF685] font-[Malnor_Sans_DEMO] tracking-wide p-8 pt-safe pb-safe">
+<body style="height: calc(var(--vh, 1vh) * 100);">
 
 <!-- HEADER -->
-<div class="text-center mb-10">
-  <img
-    src="images/nextdrink-logo.png"
-    alt="NextDrink"
-    class="mx-auto h-28 md:h-32 drop-shadow-lg"
-  >
-</div>
+<img
+  src="images/nextdrink-logo.png"
+  alt="NextDrink"
+  class="logo"
+>
 
 <!-- FIRST STATE -->
-<div id="introText" class="text-center text-lg leading-7 mb-10">
+<div id="introText" class="text-lg leading-7 mb-10">
   Met NextDrink geef je eenvoudig een digitale token<br>
   aan de persoon die jullie drankjes gaat halen.<br>
   Aan het eind reken je gemakkelijk met elkaar af.<br><br>
@@ -66,6 +107,13 @@
 </div>
 
 <script>
+  // --- FIX MOBILE VIEWPORT HEIGHT ---
+  function setVh() {
+    document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+  }
+  window.addEventListener('resize', setVh);
+  setVh();
+
   const params = new URLSearchParams(window.location.search);
   const chipId = params.get("chipId");
 
