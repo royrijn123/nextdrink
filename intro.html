@@ -4,21 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>LLET'S SPLIT – Intro</title>
+<title>NextDrink – Intro</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
   @font-face {
-    font-family: 'Baukasten';
-    src: url('fonts/Baukasten Six Regular.otf') format('opentype');
+    font-family: 'Malnor Sans DEMO';
+    src: url('fonts/MalnorSansDEMO-Bold.otf') format('opentype');
   }
 
   body {
     background: #A54EFF;
     color: #FFF685;
-    font-family: 'Baukasten', sans-serif;
-    text-transform: uppercase;
+    font-family: 'Malnor Sans DEMO', sans-serif;
     letter-spacing: 1px;
     padding: 32px 24px;
   }
@@ -39,26 +38,26 @@
 <body>
 
 <!-- HEADER -->
-<div class="text-center text-4xl mb-10">LLET'S SPLIT</div>
+<div class="text-center text-4xl mb-10">NextDrink</div>
 
 <!-- FIRST STATE -->
 <div id="introText" class="text-center text-lg leading-7 mb-10">
-  MET LLET’S SPLIT GEEF JE EENVOUDIG EEN DIGITALE TOKEN<br>
-  AAN DE PERSOON DIE JULLIE RONDJE GAAT HALEN.<br>
-  AAN HET EIND REKEN JE GEMAKKELIJK MET ELKAAR AF.<br><br>
-  JE HEBT HIERVOOR DE NFC-STICKER<br>
-  NODIG DIE JE BIJ DE INGANG KAN AFHALEN.
+  Met NextDrink geef je eenvoudig een digitale token<br>
+  aan de persoon die jullie drankjes gaat halen.<br>
+  Aan het eind reken je gemakkelijk met elkaar af.<br><br>
+  Je hebt hiervoor de NFC-sticker<br>
+  nodig die je zojuist ontvangen hebt.
 </div>
 
 <button id="scanBtn" class="btn">
-  NFC-STICKER SCANNEN
+  NFC-sticker scannen
 </button>
 
 <!-- SECOND STATE (HIDDEN INITIALLY) -->
 <div id="scanState" class="hidden text-center">
   <div class="text-xl leading-7 mb-6">
-    HOUD JE NFC-STICKER TEGEN DE ACHTERKANT<br>
-    VAN JE TELEFOON, IN DE BUURT VAN DE CAMERA.<br>
+    Houd je NFC-sticker tegen de achterkant<br>
+    van je telefoon, in de buurt van de camera.<br>
   </div>
 
   <img 
@@ -75,7 +74,7 @@
 
   // DIRECT door naar integratie als chipId al bekend is
   if (chipId) {
-    window.location.href = `lowlandsintegratie.html?chipId=${encodeURIComponent(chipId)}`;
+    window.location.href = `menu.html?chipId=${encodeURIComponent(chipId)}`;
   }
 
   const introText = document.getElementById("introText");
@@ -100,7 +99,7 @@
           const serial = event.serialNumber || "";
           if (serial) {
             window.location.href =
-              `lowlandsintegratie.html?chipId=${encodeURIComponent(serial)}`;
+              `menu.html?chipId=${encodeURIComponent(serial)}`;
           }
         };
 
