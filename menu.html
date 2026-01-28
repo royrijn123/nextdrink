@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lowlands x NextDrink</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --nd-purple: #4B008F;
+      --nd-purple-weak: rgba(75, 0, 143, 0.08);
+      --card-bg: rgba(255,255,255,0.88);
+      --card-border: rgba(255,255,255,0.35);
+      --glow: rgba(75,0,143,0.45);
+      --overlay: rgba(75,0,143,0.12);
+    }
+
+    @font-face{
+      font-family: 'Baukasten';
+      src: url('fonts/Baukasten Six Regular.otf') format('opentype');
+      font-display: swap;
+    }
+
+    html, body { height: 100%; }
+
+    body{
+      font-family: 'Poppins', sans-serif;
+      color: #1f1140;
+      background-image: url('images/lowlands2025-bg.PNG');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      position: relative;
+    }
+
+    body::before{
+      content:"";
+      position: fixed; inset: 0;
+      background: linear-gradient(180deg, var(--overlay), transparent 30%, var(--overlay) 70%, transparent);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    main{
+      position: relative;
+      z-index: 1;
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      box-shadow:
+        0 10px 30px rgba(0,0,0,0.15),
+        0 1px 0 rgba(255,255,255,0.35) inset;
+    }
+
+    .nd-heading,
+    h1,h2,h3,
+    .nd-btn,.logo-x {
+      font-family: 'Baukasten', system-ui, sans-serif !important;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--nd-purple);
+    }
+
+    /* Header met logo's naast elkaar - helft kleiner */
+    #headerRoot{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:1.2rem;
+      margin-bottom:1.25rem;
+    }
+    #headerRoot img{
+      border-radius:0.9rem;
+      object-fit:cover;
+      width:6rem;
+      height:6rem;
+    }
+    #headerRoot .logo-x{
+      font-size:2.4rem;
+      line-height:1;
+      color:var(--nd-purple);
+    }
+
+    /* Error banner */
+    #errorBanner{
+      transition: opacity .25s ease;
+    }
+
+    /* Buttons */
+    .nd-btn{
+      position: relative;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform .12s ease, box-shadow .2s ease, background-color .2s ease, border-color .2s ease, opacity .2s ease;
+      box-shadow:
+        0 0 0 rgba(0,0,0,0),
+        0 1px 0 rgba(255,255,255,0.15) inset;
+      border: 1px solid rgba(255,255,255,0.35);
+    }
+    .nd-btn:hover{ transform: translateY(-1px); }
+    .nd-btn:active{ transform: translateY(0); }
+
+    .nd-primary{
+      background: linear-gradient(180deg, rgba(255,255,255,0.65), rgba(255,255,255,0.45));
+      color: var(--nd-purple);
+    }
+
+    .nd-cta{
+      background: #a68af0;
+      color: #fff !important;
+      border: none;
+      box-shadow: 0 4px 10px rgba(120, 70, 200, 0.25);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    }
+
+    .tile{
+      transition: transform .1s ease, background-color .2s ease, box-shadow .2s ease;
+    }
+    .tile:hover{
+      background: rgba(255,255,255,0.9);
+      transform: scale(1.02);
+      box-shadow: 0 8px 20px var(--nd-purple-weak);
+    }
+
+    .nd-input{
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border-radius: 0.75rem;
+      border: 1px solid #d1d5db;
+      background: rgba(255,255,255,0.95);
+    }
+
+    #loadingOverlay{
+      background: rgba(10,10,20,0.55);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+    }
+
+    .text-lowlands{ color: var(--nd-purple); }
+
+    #ownChipExplanation{
+      font-family:'Poppins',sans-serif;
+      font-size:0.9rem;
+      color:#3a2768;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex items-start justify-center p-6">
+
+  <!-- GLOBALE LOADING OVERLAY -->
+  <div id="loadingOverlay"
+       class="fixed inset-0 z-50 flex items-center justify-center"
+       style="display:none;">
+    <div class="text-center text-white">
+      <div class="inline-block w-16 h-16 rounded-full border-8 border-white/30 border-t-white animate-spin"></div>
+      <div id="loadingText" class="mt-3">Bezig met laden...</div>
+    </div>
+  </div>
+
+  <!-- MAIN CARD -->
+  <main id="mainCard" class="w-full max-w-md rounded-3xl shadow-2xl p-6 min-h-[calc(100vh-3rem)] flex flex-col hidden">
+
+    <!-- HEADER -->
+    <header id="headerRoot">
+      <img src="images/logo-ll26.PNG" alt="LL26" id="logoLl"/>
+      <span class="logo-x" id="logoX" aria-hidden="true">×</span>
+      <img src="images/nextdrink-logo.png" alt="NextDrink" id="logoNd"/>
+    </header>
+
+    <!-- ERROR BANNER -->
+    <div id="errorBanner"
+         class="hidden opacity-0 mb-3 rounded-2xl px-3 py-2 flex items-center gap-2 bg-[rgba(75,0,143,0.08)] border border-[rgba(75,0,143,0.25)] text-sm text-[var(--nd-purple)]">
+      <span>⚠</span>
+      <span id="errorBannerText">Er ging iets mis, probeer opnieuw.</span>
+    </div>
+
+    <!-- FIRST TIME / SET NAME (beiden onbekend) -->
+    <section id="firstTime" class="text-center hidden flex-1 flex flex-col justify-center">
+      <h3 class="nd-heading text-xl font-bold mb-3">Welkom!</h3>
+      <p class="text-purple-800 mb-3">
+        Dit is jouw eigen sticker.<br/>
+        Vul je naam in om hem te personaliseren.
+      </p>
+      <input id="firstTimeNameInput" type="text" placeholder="Jouw naam" class="nd-input mb-3">
+      <button id="firstTimeContinueBtn" class="nd-btn nd-cta w-full py-3 rounded-xl font-bold">
+        Verder
+      </button>
+    </section>
+
+    <!-- GEÏNTEGREERD NAAM-VELD (voor scenario 1 & 2) -->
+    <section id="nameQuestion" class="hidden text-center flex-1 flex flex-col justify-center">
+      <h3 id="nameQuestionTitle" class="nd-heading text-xl font-bold mb-3"></h3>
+      <p id="nameQuestionBody" class="text-purple-800 mb-3"></p>
+      <input id="nameQuestionInput" type="text" placeholder="Naam" class="nd-input mb-3">
+      <button id="nameQuestionBtn" class="nd-btn nd-cta w-full py-3 rounded-xl font-bold">
+        Verder
+      </button>
+    </section>
+
+    <!-- POST-NAME INSTRUCTIONS (eigen sticker) -->
+    <section id="postName" class="hidden text-center flex-1 flex flex-col justify-center">
+      <h3 class="nd-heading text-lg font-semibold mb-2">Je bent klaar!</h3>
+      <p class="text-purple-900 mb-3">
+        Haal de <strong>QR-code</strong> van je sticker en plak het andere deel
+        <strong>onderin op de achterkant</strong> van je telefoon.
+      </p>
+      <button id="postNameContinueBtn" class="nd-btn nd-cta mt-4 w-full py-3 rounded-xl font-bold">
+        Verder
+      </button>
+    </section>
+
+    <!-- MENU -->
+    <section id="menu" class="hidden flex-1 flex flex-col">
+      <h2 id="menuTitle" class="nd-heading text-lg font-semibold mb-3"></h2>
+
+      <!-- Uitlegblok eigen sticker -->
+      <div id="ownChipExplanation" class="hidden mb-4">
+        <p class="mb-2">
+          Dit is jouw <strong>eigen sticker</strong>. LLET'S SPLIT houdt bij
+          wie welk rondje voor wie haalt.
+        </p>
+        <p class="mb-2">
+          <strong>Als jij een rondje gaat halen</strong>, laat je je vrienden
+          <strong>jouw sticker</strong> scannen.
+        </p>
+        <p class="mb-2">
+          <strong>Als een vriend voor jou een drankje haalt</strong>, scan jij
+          <strong>zijn sticker</strong>.
+        </p>
+        <p>
+          Zo ontstaat er automatisch een eerlijk overzicht van alle rondjes,
+          bestellingen en wat iedereen nog moet verrekenen.
+        </p>
+      </div>
+
+      <!-- Drankjes-grid (alleen bij andermans sticker) -->
+      <div id="drinks" class="grid grid-cols-2 gap-4 mb-4"></div>
+
+      <!-- Knoppen -->
+      <div class="grid grid-cols-1 gap-3 mt-auto">
+        <button id="newDrinkScreenBtn" class="nd-btn nd-primary w-full py-3 rounded-xl font-semibold">
+          + Nieuw drankje
+        </button>
+        <button id="bestelOverzichtBtn" class="nd-btn nd-cta w-full py-3 rounded-xl font-bold text-white">
+          Bekijk bestellijst
+        </button>
+        <div class="flex gap-3 mt-2">
+          <button id="scoresBtn" class="nd-btn nd-primary flex-1 py-3 rounded-xl font-bold">
+            Tussenstand
+          </button>
+          <button id="finalBtn" class="nd-btn nd-primary flex-1 py-3 rounded-xl font-bold">
+            Eindafrekening
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- NEW DRINK SCREEN -->
+    <section id="newDrink" class="hidden flex-1 flex flex-col">
+      <h3 class="nd-heading font-bold mb-3">Nieuw drankje toevoegen</h3>
+      <div class="flex flex-col gap-3 mb-3">
+        <input id="newDrinkName" type="text" placeholder="Naam nieuw drankje" class="nd-input">
+        <input id="newDrinkPrice" type="number" step="0.01" placeholder="Prijs (€)" class="nd-input">
+      </div>
+      <div class="flex gap-2 mt-auto">
+        <button id="addDrinkBtn" class="nd-btn nd-cta flex-1 py-3 rounded-xl font-bold text-white">Opslaan</button>
+        <button id="cancelNewDrinkBtn" class="nd-btn nd-primary flex-1 py-3 rounded-xl font-bold">Annuleren</button>
+      </div>
+    </section>
+
+    <!-- CONFIRM -->
+    <section id="confirm" class="hidden text-center flex-1 flex flex-col justify-center">
+      <div class="text-5xl">✅</div>
+      <div id="confirmText" class="mt-3 font-semibold text-lowlands"></div>
+      <div class="mt-4 flex gap-3">
+        <button id="newRoundBtn" class="nd-btn nd-cta flex-1 py-3 rounded-xl font-bold text-white">Nieuw rondje</button>
+        <button id="confirmScoresBtn" class="nd-btn nd-primary flex-1 py-3 rounded-xl font-bold">Tussenstand</button>
+      </div>
+    </section>
+
+    <!-- SCORES -->
+    <section id="scores" class="hidden flex-1 flex flex-col">
+      <h3 class="nd-heading font-bold mb-2">Tussenstand</h3>
+      <div id="scoreList" class="text-purple-900 flex-1"></div>
+      <div class="mt-4">
+        <button id="backToMenuFromScores" class="nd-btn nd-primary w-full py-3 rounded-xl font-bold">Terug</button>
+      </div>
+    </section>
+
+    <!-- BESTELLIJST -->
+    <section id="bestellijst" class="hidden flex-1 flex flex-col">
+      <h3 class="nd-heading font-bold mb-2">Bestellijst (laatste 30 min)</h3>
+      <div id="bestellijstContent" class="orders-wrap flex-1"></div>
+      <div class="mt-4">
+        <button id="backToMenuFromBestel" class="nd-btn nd-primary w-full py-3 rounded-xl font-bold">Terug</button>
+      </div>
+    </section>
+
+    <!-- FINAL -->
+    <section id="final" class="hidden flex-1 flex flex-col">
+      <h3 class="nd-heading font-bold mb-2">Eindafrekening</h3>
+      <div id="finalTotals" class="text-purple-900"></div>
+      <div id="finalSettlements" class="text-purple-900 mt-2"></div>
+      <div id="finalSettlementStatus" class="text-purple-900 mt-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="markPaidBtn" class="nd-btn nd-cta flex-1 py-3 rounded-xl font-bold text-white">Ik wil afrekenen</button>
+        <button id="backToMenuFromFinal" class="nd-btn nd-primary flex-1 py-3 rounded-xl font-bold">Terug</button>
+      </div>
+    </section>
+
+  </main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const apiUrl = "https://script.google.com/macros/s/AKfycby42R3yY7fAl6UiTiJrB0DHNxAf2dVIZXTCVywT6K_VjDzvW8n9PszbKicDCHPrxb8X4Q/exec";
+
+  // chipId uit URL
+  const chipIdRaw = new URLSearchParams(window.location.search).get('chipId');
+  const chipId = (chipIdRaw && chipIdRaw !== 'null' && chipIdRaw !== 'undefined') ? chipIdRaw.trim() : null;
+  const noChipMode = !chipId;
+
+  // Alleen scannerName + myChipId in localStorage
+  let scannerName = (localStorage.getItem('scannerName') || '').trim();
+  let chipOwner = '';
+  let drinks = [];
+  let isOwnChip = false;
+  let myChipId = localStorage.getItem('myChipId') || null;
+
+  // CACHE (alleen voor drankjes)
+  let drinksCache = JSON.parse(localStorage.getItem("drinksCache") || "null");
+  let drinksCacheTime = parseInt(localStorage.getItem("drinksCacheTime") || "0", 10) || 0;
+
+  const CACHE_DRINKS_MAX_AGE = 24*60*60*1000;
+  const CACHE_REFRESH_INTERVAL = 5*60*1000;
+
+  let nameQuestionMode = null;
+  let errorTimeout = null;
+
+  function showMain(){
+    $("mainCard").classList.remove("hidden");
+  }
+
+  function showLoading(show, text='Bezig...') {
+    const overlay = $('loadingOverlay');
+    overlay.style.display = show ? 'flex' : 'none';
+    $('loadingText').textContent = text;
+    document.querySelectorAll('button').forEach(b => b.disabled = show);
+  }
+
+  function showError(message){
+    const banner = $('errorBanner');
+    const textEl = $('errorBannerText');
+    if (!banner || !textEl) return;
+
+    textEl.textContent = message || 'Er ging iets mis, probeer opnieuw.';
+    banner.classList.remove('hidden');
+    banner.classList.remove('opacity-0');
+    banner.classList.add('opacity-100');
+
+    if (errorTimeout) clearTimeout(errorTimeout);
+    errorTimeout = setTimeout(() => {
+      banner.classList.remove('opacity-100');
+      banner.classList.add('opacity-0');
+      setTimeout(() => banner.classList.add('hidden'), 250);
+    }, 3000);
+  }
+
+  async function fetchWithTimeout(url, options={}, timeout=6000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(id);
+      return res;
+    } catch (err) {
+      clearTimeout(id);
+      throw err;
+    }
+  }
+
+  function hideAll() {
+    [
+      'menu','confirm','scores','final',
+      'firstTime','bestellijst','newDrink',
+      'postName','nameQuestion'
+    ].forEach(id => $(id)?.classList.add('hidden'));
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // DRANKEN LADEN MET CACHE
+  async function loadDrinks(){
+    const NOW = Date.now();
+    if (drinksCache && (NOW - drinksCacheTime) < CACHE_DRINKS_MAX_AGE){
+      drinks = drinksCache;
+      return;
+    }
+    try{
+      const resp = await fetchWithTimeout(`${apiUrl}?action=getDrinks`, {}, 4000);
+      const list = await resp.json();
+      drinks = list;
+      drinksCache = list;
+      drinksCacheTime = NOW;
+      localStorage.setItem("drinksCache", JSON.stringify(list));
+      localStorage.setItem("drinksCacheTime", NOW.toString());
+    }catch(e){
+      console.error("Fout bij drinks laden:", e);
+      if (drinksCache){
+        drinks = drinksCache;
+      } else {
+        drinks = [
+          {name:'Kleine bier',price:4.4},
+          {name:'Grote bier',price:8},
+          {name:'Desperados',price:6.5},
+          {name:'Wijn',price:6},
+          {name:'0.0 bier',price:4},
+          {name:'Frisdrank',price:4}
+        ];
+      }
+    }
+  }
+
+  // Periodieke refresh voor drankjes (optioneel)
+  async function refreshCaches(){
+    try{
+      const rD = await fetchWithTimeout(`${apiUrl}?action=getDrinks`,{},4000);
+      const newDrinks = await rD.json();
+      drinksCache = newDrinks;
+      drinksCacheTime = Date.now();
+      localStorage.setItem("drinksCache", JSON.stringify(newDrinks));
+      localStorage.setItem("drinksCacheTime", drinksCacheTime.toString());
+    }catch(e){
+      console.warn("Periodic drinks sync failed", e);
+    }
+  }
+  setInterval(refreshCaches, CACHE_REFRESH_INTERVAL);
+
+  // EIGEN STICKER LOGICA
+  function updateOwnChipFlag(){
+    isOwnChip = !!(chipId && myChipId && myChipId === chipId);
+  }
+
+  // CHIPOWNER UIT GOOGLE SHEETS
+  async function resolveOwner(){
+    chipOwner = "";
+    if (!chipId) return;
+
+    try{
+      const resp = await fetchWithTimeout(
+        `${apiUrl}?action=getOwner&chipId=${encodeURIComponent(chipId)}`,
+        {},
+        10000
+      );
+      if (!resp.ok) {
+        console.error("getOwner HTTP fout:", resp.status);
+        chipOwner = "";
+        return;
+      }
+      chipOwner = (await resp.text()).trim();
+      console.log("getOwner ->", chipOwner);
+    }catch(e){
+      console.error("Fout bij getOwner:", e);
+      chipOwner = "";
+    }
+  }
+
+  async function handleNameLogic(){
+    if (noChipMode) {
+      updateOwnChipFlag();
+      return "menu";
+    }
+
+    const hasScanner = !!scannerName;
+    const hasOwner   = !!chipOwner;
+
+    // 0. Eerst checken: eigen sticker?
+    updateOwnChipFlag();
+    if (isOwnChip){
+      // Als naam nog niet bekend maar owner wel → gebruik owner als titel
+      if (!hasScanner && hasOwner){
+        // Vraag 1x om jouw naam
+        nameQuestionMode = 'askScannerOwn';
+        hideAll();
+        $('nameQuestionTitle').textContent = 'Dit is jouw eigen sticker';
+        $('nameQuestionBody').textContent =
+          'Vul je naam in zodat we je bestellingen aan jouw sticker kunnen koppelen.';
+        $('nameQuestionInput').value = '';
+        $('nameQuestion').classList.remove('hidden');
+        return "nameQuestion";
+      }
+      if (!hasScanner && !hasOwner){
+        // helemaal blanco → treat as firstTime
+        hideAll();
+        $('firstTime').classList.remove('hidden');
+        return "firstTime";
+      }
+      // eigen sticker + scannerName bekend → direct naar menu
+      return "menu";
+    }
+
+    // 1. Beide bekend (geen eigen sticker) → direct menu
+    if (hasScanner && hasOwner){
+      return "menu";
+    }
+
+    // 2. chipOwner bekend, scanner niet → 'Je hebt de sticker van X gescand'
+    if (hasOwner && !hasScanner){
+      nameQuestionMode = 'askScanner';
+      hideAll();
+      $('nameQuestionTitle').textContent = 'Wie ben jij?';
+      $('nameQuestionBody').innerHTML =
+        `Je hebt de sticker van <strong>${escapeHtml(chipOwner)}</strong> gescand. Wat is jouw eigen naam?`;
+      $('nameQuestionInput').value = '';
+      $('nameQuestion').classList.remove('hidden');
+      return "nameQuestion";
+    }
+
+    // 3. scanner bekend, owner niet → sticker nog niet gekoppeld
+    if (!hasOwner && hasScanner){
+      nameQuestionMode = 'askOwner';
+      hideAll();
+      $('nameQuestionTitle').textContent = 'Sticker nog niet gekoppeld';
+      $('nameQuestionBody').textContent =
+        'Deze sticker is nog niet gekoppeld, van wie is de sticker die je scande?';
+      $('nameQuestionInput').value = '';
+      $('nameQuestion').classList.remove('hidden');
+      return "nameQuestion";
+    }
+
+    // 4. beiden onbekend → firstTime (eigen sticker claimen)
+    if (!hasOwner && !hasScanner){
+      hideAll();
+      $('firstTime').classList.remove('hidden');
+      return "firstTime";
+    }
+
+    return "menu";
+  }
+
+  // CENTRALE HELPER: OWNER OPSLAAN IN SHEETS
+  async function setOwnerOnServer(ownerName, markAsOwnSticker = false){
+    if (!chipId) return;
+    showLoading(true,'Sticker koppelen...');
+    try{
+      const resp = await fetchWithTimeout(apiUrl, {
+        method:'POST',
+        body:new URLSearchParams({action:'setOwner', chipId, owner:ownerName})
+      }, 10000);
+
+      let txt = '';
+      try { txt = (await resp.text()).trim(); } catch(e){}
+      if (!resp.ok){
+        console.error('setOwner HTTP fout:', resp.status, txt);
+        showError('Het koppelen kan iets langer duren, maar je naam is opgeslagen.');
+      }
+    }catch(e){
+      console.error('setOwner netwerk/timeout:', e);
+      showError('Verbinding is traag. Je naam is waarschijnlijk wel opgeslagen, controleer het later nog eens.');
+    }finally{
+      showLoading(false);
+    }
+
+    if (markAsOwnSticker){
+      localStorage.setItem('myChipId', chipId);
+      myChipId = chipId;
+      updateOwnChipFlag();
+    }
+  }
+
+  async function init(){
+    showLoading(true,'Initialiseren...');
+    try{
+      await loadDrinks();
+
+      // Insight-mode zonder chip
+      if (noChipMode){
+        chipOwner = scannerName || '';
+        isOwnChip = false;
+        showMain();
+        hideAll();
+        renderMenu();
+        return;
+      }
+
+      // altijd owner uit Google Sheets halen
+      await resolveOwner();
+      updateOwnChipFlag();
+
+      const state = await handleNameLogic();
+      showMain();
+
+      if (state === "menu"){
+        hideAll();
+        renderMenu();
+      }
+
+    }catch(err){
+      console.error('Fout bij initialiseren:', err);
+      showMain();
+      hideAll();
+      renderMenu();
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+  }
+
+  // FIRST TIME FLOW (eigen sticker claimen)
+  $('firstTimeContinueBtn').onclick = async ()=>{
+    const name = $('firstTimeNameInput').value.trim();
+    if(!name){
+      showError('Voer een naam in.');
+      return;
+    }
+
+    scannerName = name;
+    chipOwner   = name;
+    localStorage.setItem('scannerName', scannerName);
+
+    if (chipId){
+      await setOwnerOnServer(chipOwner, true);
+    }
+
+    hideAll();
+    $('postName').classList.remove('hidden');
+  };
+
+  $('postNameContinueBtn').onclick = ()=>{
+    hideAll();
+    renderMenu();
+  };
+
+  // NAAMVRAAG HANDLER (scenario 1 & 2 & eigen sticker zonder scannerName)
+  $('nameQuestionBtn').onclick = async ()=>{
+    const val = $('nameQuestionInput').value.trim();
+    if(!val){
+      showError('Voer een naam in.');
+      return;
+    }
+
+    if (nameQuestionMode === 'askScanner' || nameQuestionMode === 'askScannerOwn'){
+      // eigen naam van de scanner invoeren
+      scannerName = val;
+      localStorage.setItem('scannerName', scannerName);
+
+      // bij eigen sticker zonder owner → gebruik deze naam als owner in UI en schrijf naar sheet
+      if (nameQuestionMode === 'askScannerOwn' && chipId){
+        chipOwner = scannerName;
+        await setOwnerOnServer(chipOwner, true);
+      }
+    }
+    else if (nameQuestionMode === 'askOwner'){
+      // eigenaar van deze sticker invoeren
+      chipOwner = val;
+      if (chipId){
+        await setOwnerOnServer(chipOwner, false);
+      }
+    }
+
+    updateOwnChipFlag();
+    hideAll();
+    renderMenu();
+  };
+
+  // RENDER MENU
+  function renderMenu(){
+    hideAll();
+
+    const titleEl = $('menuTitle');
+    const drinksDiv = $('drinks');
+    const ownExpl   = $('ownChipExplanation');
+    const newDrinkBtn = $('newDrinkScreenBtn');
+
+    const inInsight = noChipMode;
+    const showOwnExplanation = !inInsight && isOwnChip;
+
+    if (inInsight){
+      titleEl.textContent = "JOUW OVERZICHT";
+      ownExpl.classList.add("hidden");
+      drinksDiv.style.display = "none";
+      newDrinkBtn.style.display = "none";
+    } else if (showOwnExplanation){
+      titleEl.textContent = "JOUW STICKER IS KLAAR";
+      ownExpl.classList.remove("hidden");
+      drinksDiv.style.display = "none";
+      newDrinkBtn.style.display = "none";
+    } else {
+      ownExpl.classList.add("hidden");
+      drinksDiv.style.display = "grid";
+      newDrinkBtn.style.display = "block";
+
+      const title = chipOwner
+        ? `WAT WIL JE DAT ${chipOwner.toUpperCase()} VOOR JE HAALT?`
+        : 'KIES JE DRANKJE';
+      titleEl.textContent = title;
+    }
+
+    drinksDiv.innerHTML = "";
+    if (!inInsight && !showOwnExplanation){
+      drinks.forEach(d=>{
+        const btn = document.createElement('button');
+        btn.className = 'tile block w-full rounded-lg p-3 bg-white/90 shadow-sm ring-1 ring-white/60 text-left';
+        btn.innerHTML = `
+          <div class="font-semibold text-gray-900">${escapeHtml(d.name)}</div>
+          <div class="text-sm text-gray-600 mt-1">€${Number(d.price).toFixed(2)}</div>
+        `;
+        btn.onclick = async ()=>{
+          if(!scannerName){
+            showError("Je naam is niet bekend, vul eerst je naam in.");
+            return;
+          }
+          showLoading(true,'Verwerken...');
+          try{
+            await fetch(apiUrl, {
+              method:'POST',
+              body:new URLSearchParams({
+                action:'addScan',
+                chipId,
+                scanner: scannerName,
+                drink: d.name,
+                amount: d.price
+              })
+            });
+            $('confirmText').innerHTML =
+              `${escapeHtml(d.name)} (€${Number(d.price).toFixed(2)}) is doorgegeven aan ${escapeHtml(chipOwner || 'deze sticker')}.`;
+            hideAll();
+            $('confirm').classList.remove('hidden');
+          }catch(e){
+            console.error(e);
+            showError('Er ging iets mis, probeer opnieuw.');
+          }finally{
+            showLoading(false);
+          }
+        };
+        drinksDiv.appendChild(btn);
+      });
+    }
+
+    $('menu').classList.remove('hidden');
+  }
+
+  // NEW DRINK SCREEN
+  $('newDrinkScreenBtn').onclick = ()=>{
+    hideAll();
+    $('newDrink').classList.remove('hidden');
+  };
+  $('cancelNewDrinkBtn').onclick = ()=>{ renderMenu(); };
+
+  $('addDrinkBtn').onclick = async ()=>{
+    const name = $('newDrinkName').value.trim();
+    const price = parseFloat($('newDrinkPrice').value);
+    if(!name || isNaN(price) || price<=0){
+      showError('Ongeldige naam of prijs.');
+      return;
+    }
+    showLoading(true,'Opslaan...');
+    drinks.push({name, price});
+    $('newDrinkName').value='';
+    $('newDrinkPrice').value='';
+    try{
+      await fetch(apiUrl, {
+        method:'POST',
+        body:new URLSearchParams({action:'setDrinks', drinks:JSON.stringify(drinks)})
+      });
+      drinksCache = drinks;
+      drinksCacheTime = Date.now();
+      localStorage.setItem("drinksCache", JSON.stringify(drinks));
+      localStorage.setItem("drinksCacheTime", drinksCacheTime.toString());
+      renderMenu();
+    }catch(e){
+      console.error(e);
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+  };
+
+  // BESTELLIJST
+  $('bestelOverzichtBtn').onclick = async ()=>{
+    showLoading(true,'Bestellijst laden...');
+    try{
+      const res = await fetchWithTimeout(`${apiUrl}?action=getScans`, {}, 10000);
+      const scans = await res.json();
+      const now = Date.now();
+      const THIRTY_MIN = 30*60*1000;
+
+      const recent = scans.filter(s=>{
+        if(s.owner !== chipOwner) return false;
+        const t = new Date(s.timestamp || s.time || s.date || 0).getTime();
+        return isFinite(t) ? (now - t) <= THIRTY_MIN : false;
+      });
+
+      let html = '';
+      if(recent.length===0){
+        html = `<div class="order-panel"><p>Geen recente bestellingen (laatste 30 minuten) voor <strong>${escapeHtml(chipOwner || "deze sticker")}</strong>.</p></div>`;
+      }else{
+        const grouped = {};
+        recent.forEach(s=>{
+          const sc = s.scanner || 'Onbekend';
+          const dr = s.drink || 'Onbekend drankje';
+          if(!grouped[sc]) grouped[sc] = {};
+          grouped[sc][dr] = (grouped[sc][dr] || 0) + 1;
+        });
+
+        Object.entries(grouped).forEach(([scanner, drinksObj])=>{
+          html += `<div class="order-panel"><h4>${escapeHtml(scanner)}</h4><div>`;
+          Object.entries(drinksObj).forEach(([drinkName, count])=>{
+            html += `
+              <div class="order-row">
+                <div class="order-qty">${count}×</div>
+                <div class="order-name">${escapeHtml(drinkName)}</div>
+              </div>`;
+          });
+          html += `</div></div>`;
+        });
+      }
+
+      hideAll();
+      $('bestellijstContent').innerHTML = html;
+      $('bestellijst').classList.remove('hidden');
+
+    }catch(e){
+      console.error(e);
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+  };
+
+  $('backToMenuFromBestel').onclick = renderMenu;
+
+  // SCORES
+  $('scoresBtn').onclick = showScores;
+  $('confirmScoresBtn').onclick = showScores;
+  $('newRoundBtn').onclick = renderMenu;
+  $('backToMenuFromScores').onclick = renderMenu;
+
+  async function showScores(){
+    showLoading(true,'Tussenstand laden...');
+    try{
+      const res = await fetchWithTimeout(`${apiUrl}?action=getScores`, {}, 10000);
+      const scores = await res.json();
+      let html = "<ul class='list-disc ml-5'>";
+      if(!scores.length){
+        html += "<li>Nog geen data</li>";
+      }else{
+        scores.forEach(s=>{
+          html += `<li><strong>${escapeHtml(s.owner)}</strong> — ${s.rounds} rondje${s.rounds===1?'':'s'}</li>`;
+        });
+      }
+      html += "</ul>";
+      hideAll();
+      $('scoreList').innerHTML = html;
+      $('scores').classList.remove('hidden');
+    }catch(e){
+      console.error(e);
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+  }
+
+  // FINAL
+  $('finalBtn').onclick = showFinal;
+  $('backToMenuFromFinal').onclick = renderMenu;
+
+  $('markPaidBtn').onclick = async ()=>{
+    if(!scannerName){
+      showError("Je naam is niet bekend, dus we kunnen je verzoek niet koppelen.");
+      return;
+    }
+    showLoading(true,'Bezig met registreren...');
+    try{
+      await fetchWithTimeout(apiUrl, {
+        method:'POST',
+        body:new URLSearchParams({action:'markAsPaid', name:scannerName})
+      }, 10000);
+      $('finalSettlementStatus').textContent = '✅ Je verzoek is ingediend!';
+    }catch(e){
+      console.error(e);
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+  };
+
+  async function showFinal(){
+    showLoading(true,'Eindafrekening laden...');
+    try{
+      const res = await fetchWithTimeout(`${apiUrl}?action=getFinal`, {}, 10000);
+      const data = await res.json();
+
+      let htmlTotals = '';
+      if(!data.result?.length){
+        htmlTotals = '<p>Nog geen data</p>';
+      }else{
+        htmlTotals += '<div class="font-semibold mb-2">Totaal uitgegeven per persoon:</div><ul class="list-disc ml-5">';
+        data.result.forEach(t=>{
+          htmlTotals += `<li><strong>${escapeHtml(t.name)}</strong> — €${Number(t.balance).toFixed(2)}</li>`;
+        });
+        htmlTotals += '</ul>';
+      }
+
+      let htmlSettle = '';
+      if(!data.settlements?.length){
+        htmlSettle = '<p>Geen verrekeningen nodig.</p>';
+      }else{
+        htmlSettle += '<div class="font-semibold mt-2">Verrekeningen</div><ul class="list-disc ml-5">';
+        data.settlements.forEach(s=>{
+          htmlSettle += `<li>${escapeHtml(s.from)} betaalt €${Number(s.amount).toFixed(2)} aan ${escapeHtml(s.to)}</li>`;
+        });
+        htmlSettle += '</ul>';
+      }
+
+      hideAll();
+      $('finalTotals').innerHTML = htmlTotals;
+      $('finalSettlements').innerHTML = htmlSettle;
+      $('final').classList.remove('hidden');
+    }catch(e){
+      console.error(e);
+      showError('Er ging iets mis, probeer opnieuw.');
+    }finally{
+      showLoading(false);
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
