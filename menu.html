@@ -847,9 +847,11 @@
       if(!scores.length){
         html += "<li>Nog geen data</li>";
       }else{
-        scores.forEach(s=>{
-          html += `<li><strong>${escapeHtml(s.owner)}</strong> — ${s.rounds} rondje${s.rounds===1?'':'s'}</li>`;
-        });
+      scores.sort((a, b) => b.rounds - a.rounds);
+
+      scores.forEach(s=>{
+      html += `<li><strong>${escapeHtml(s.owner)}</strong> — ${s.rounds} rondje${s.rounds===1?'':'s'}</li>`;
+      });
       }
       html += "</ul>";
       hideAll();
