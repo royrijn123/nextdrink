@@ -7,120 +7,158 @@
 <title>NextDrink – Intro</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 
 <style>
-  @font-face {
-    font-family: 'Malnor Sans DEMO';
-    src: url('fonts/MalnorSansDEMO-Bold.otf') format('opentype');
-  }
+:root{
+  --nd-purple: #4B008F;
+  --nd-purple-weak: rgba(75, 0, 143, 0.08);
+  --card-bg: rgba(255,255,255,0.88);
+  --card-border: rgba(255,255,255,0.35);
+  --overlay: rgba(75,0,143,0.12);
+}
 
-  body {
-    background-image: url('images/nd-background.png');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-    position: relative;
-    color: #FFF685;
-    font-family: 'Malnor Sans DEMO', sans-serif;
-    letter-spacing: 1px;
-    padding: 32px 24px;
-  }
+@font-face{
+  font-family: 'Malnor Sans Demo';
+  src: url('fonts/MalnorSansDEMO-Bold.otf') format('opentype');
+  font-display: swap;
+}
 
-  .btn {
-    background: #FFF685;
-    color: #36315B;
-    padding: 16px;
-    width: 100%;
-    border-radius: 14px;
-    text-align: center;
-    font-size: 1.3rem;
-    margin-top: 30px;
-  }
+html, body { height:100%; }
+
+body{
+  font-family: 'Poppins', sans-serif;
+  color:#1f1140;
+  background-image: url('images/nd-background.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  position: relative;
+}
+
+body::before{
+  content:"";
+  position: fixed; inset: 0;
+  background: linear-gradient(180deg, var(--overlay), transparent 30%, var(--overlay) 70%, transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+
+main{
+  position: relative;
+  z-index: 1;
+  background: var(--card-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--card-border);
+  box-shadow:
+    0 10px 30px rgba(0,0,0,0.15),
+    0 1px 0 rgba(255,255,255,0.35) inset;
+}
+
+.nd-heading,
+.nd-btn {
+  font-family: 'Malnor Sans Demo', system-ui, sans-serif !important;
+  letter-spacing: 0.5px;
+  color: var(--nd-purple);
+}
+
+.nd-btn{
+  transition: transform .12s ease, box-shadow .2s ease;
+  border: 1px solid rgba(255,255,255,0.35);
+}
+
+.nd-btn:hover{ transform: translateY(-1px); }
+
+.nd-cta{
+  background: #a68af0;
+  color: #fff !important;
+  border: none;
+  box-shadow: 0 4px 10px rgba(120,70,200,0.25);
+}
 </style>
 </head>
 
-<body>
+<body class="min-h-screen flex items-start justify-center p-6">
 
-<!-- HEADER -->
-<div class="text-center mb-10">
-  <img
-    src="images/nextdrink-logo.png"
-    alt="NextDrink"
-    class="mx-auto h-28 md:h-32 drop-shadow-lg"
-  >
-</div>
+<main class="w-full max-w-md rounded-3xl shadow-2xl p-6 min-h-[calc(100vh-3rem)] flex flex-col">
 
+  <!-- HEADER -->
+  <header class="flex justify-center mb-6">
+    <img src="images/nextdrink-logo.png" alt="NextDrink" class="w-24 h-24 object-contain">
+  </header>
 
-<!-- FIRST STATE -->
-<div id="introText" class="text-center text-lg leading-7 mb-10">
-  Met NextDrink geef je eenvoudig een digitale token<br>
-  aan de persoon die jullie drankjes gaat halen.<br>
-  Aan het eind reken je gemakkelijk met elkaar af.<br><br>
-  Je hebt hiervoor de NFC-sticker<br>
-  nodig die je zojuist ontvangen hebt.
-</div>
+  <!-- INTRO -->
+  <section id="introText" class="text-center flex-1 flex flex-col justify-center">
+    <h2 class="nd-heading text-xl font-bold mb-4">Welkom bij NextDrink</h2>
+    <p class="text-purple-900 leading-relaxed">
+      Met NextDrink geef je eenvoudig een digitale token<br>
+      aan de persoon die jullie drankjes gaat halen.<br>
+      Aan het eind reken je gemakkelijk met elkaar af.<br><br>
+      Je hebt hiervoor de NFC-sticker<br>
+      nodig die je zojuist ontvangen hebt.
+    </p>
 
-<button id="scanBtn" class="btn">
-  NFC-sticker scannen
-</button>
+    <button id="scanBtn" class="nd-btn nd-cta mt-8 w-full py-3 rounded-xl font-bold">
+      NFC-sticker scannen
+    </button>
+  </section>
 
-<!-- SECOND STATE (HIDDEN INITIALLY) -->
-<div id="scanState" class="hidden text-center">
-  <div class="text-xl leading-7 mb-6">
-    Houd je NFC-sticker tegen de achterkant<br>
-    van je telefoon, in de buurt van de camera.<br>
-  </div>
+  <!-- SCAN STATE -->
+  <section id="scanState" class="hidden text-center flex-1 flex flex-col justify-center">
+    <h2 class="nd-heading text-lg font-semibold mb-4">
+      Scan je sticker
+    </h2>
 
-  <img 
-    src="images/hand-nfc.png" 
-    alt="NFC instructie" 
-    class="mx-auto mt-4 w-64 opacity-90"
-  >
-</div>
+    <p class="text-purple-900 mb-6">
+      Houd je NFC-sticker tegen de achterkant<br>
+      van je telefoon, in de buurt van de camera.
+    </p>
 
+    <img 
+      src="images/hand-nfc.png" 
+      alt="NFC instructie" 
+      class="mx-auto w-56 opacity-90"
+    >
+  </section>
+
+</main>
 
 <script>
-  const params = new URLSearchParams(window.location.search);
-  const chipId = params.get("chipId");
+const params = new URLSearchParams(window.location.search);
+const chipId = params.get("chipId");
 
-  // DIRECT door naar integratie als chipId al bekend is
-  if (chipId) {
-    window.location.href = `menu.html?chipId=${encodeURIComponent(chipId)}`;
-  }
+if (chipId) {
+  window.location.href = `menu.html?chipId=${encodeURIComponent(chipId)}`;
+}
 
-  const introText = document.getElementById("introText");
-  const scanBtn = document.getElementById("scanBtn");
-  const scanState = document.getElementById("scanState");
+const introText = document.getElementById("introText");
+const scanBtn = document.getElementById("scanBtn");
+const scanState = document.getElementById("scanState");
 
-  // --- USER CLICKS "NFC-STICKER SCANNEN" ---
-  scanBtn.onclick = () => {
+scanBtn.onclick = () => {
 
-    // Verberg eerste scherm, toon scan-instructie
-    introText.classList.add("hidden");
-    scanBtn.classList.add("hidden");
-    scanState.classList.remove("hidden");
+  introText.classList.add("hidden");
+  scanState.classList.remove("hidden");
 
-    // 1. ANDROID → WebNFC scannen
-    if ("NDEFReader" in window) {
-      try {
-        const reader = new NDEFReader();
-        reader.scan();
+  if ("NDEFReader" in window) {
+    try {
+      const reader = new NDEFReader();
+      reader.scan();
 
-        reader.onreading = event => {
-          const serial = event.serialNumber || "";
-          if (serial) {
-            window.location.href =
-              `menu.html?chipId=${encodeURIComponent(serial)}`;
-          }
-        };
+      reader.onreading = event => {
+        const serial = event.serialNumber || "";
+        if (serial) {
+          window.location.href =
+            `menu.html?chipId=${encodeURIComponent(serial)}`;
+        }
+      };
 
-      } catch (e) {
-        console.error(e);
-      }
+    } catch (e) {
+      console.error(e);
     }
-
-    // 2. iPHONE → iOS scant via OS (wij hoeven niks te doen)
-  };
+  }
+};
 </script>
 
 </body>
